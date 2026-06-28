@@ -36,6 +36,25 @@
     {% endif %}
 
     {% if current_user.is_authenticated %}
+        {% if today_plan and not session.get('current_workout_id') %}
+        <div class="today-plan-chip">
+            {% if today_plan.source == 'scheduled' %}
+            <span class="today-plan-icon">📅</span>
+            {% else %}
+            <span class="today-plan-icon">🔄</span>
+            {% endif %}
+            <span class="today-plan-text">
+                {% if today_plan.source == 'scheduled' %}Scheduled{% else %}Next in rotation{% endif %}:
+                <strong>{{ today_plan.label }}</strong>
+            </span>
+            {% if today_plan.routine_type != routine_type %}
+            <a href="{{ url_for('main.home', routine=today_plan.routine_type) }}" class="today-plan-switch">Switch →</a>
+            {% else %}
+            <span class="today-plan-active">✓ Viewing</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% if session.get('current_workout_id') %}
         <div class="active-workout-banner">
             Workout in progress — tap an exercise to log it.

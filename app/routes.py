@@ -5,10 +5,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import func
 from app.models import (User, Workout, ExerciseLog, UserProgression,
                          CustomExercise, HiddenExercise, GeneratedProgram,
-                         UserApiKey)
+                         UserApiKey, RotationEntry, WorkoutSchedule)
 from app import db
 from app import ai_generator
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
 import json
 
 main = Blueprint('main', __name__)
@@ -102,6 +102,56 @@ def _default_routine_view():
     return 'bwf'
 
 
+def _today_plan():
+    """Return the scheduled or rotation-suggested routine for today, or None.
+
+    Returns a dict: {routine_type, source} where source is 'scheduled' or 'rotation'.
+    """
+    if not current_user.is_authenticated:
+        return None
+    today = date.today()
+    scheduled = WorkoutSchedule.query.filter_by(
+        user_id=current_user.id, scheduled_date=today).first()
+    if scheduled and _valid_routine_key(scheduled.routine_type):
+        return {'routine_type': scheduled.routine_type, 'source': 'scheduled'}
+
+    rotation = (RotationEntry.query
+                .filter_by(user_id=current_user.id)
+                .order_by(RotationEntry.position)
+                .all())
+    if not rotation:
+        return None
+
+    last_workout = (Workout.query.filter_by(user_id=current_user.id)
+                    .order_by(Workout.id.desc()).first())
+    if last_workout is None:
+        candidate = rotation[0].routine_type
+    else:
+        last_type = last_workout.routine_type
+        positions = [r.routine_type for r in rotation]
+        try:
+            idx = positions.index(last_type)
+            candidate = positions[(idx + 1) % len(positions)]
+        except ValueError:
+            candidate = positions[0]
+
+    if _valid_routine_key(candidate):
+        return {'routine_type': candidate, 'source': 'rotation'}
+    return None
+
+
+def _routine_display_name(routine_type, ai_programs):
+    """Human-readable label for a routine_type."""
+    if routine_type == 'bwf':
+        return 'BWF'
+    if routine_type == 'gym':
+        return 'Gym'
+    for p in ai_programs:
+        if p.routine_key == routine_type:
+            return p.name
+    return routine_type
+
+
 @main.route('/')
 def home():
     routine = request.args.get('routine')
@@ -134,6 +184,7 @@ def home():
     last_logs = {}
     user_progressions = {}
     progression_data = {}
+    today_plan = None
 
     if current_user.is_authenticated:
         all_names = [ex['name'] for exs in routine_data.values() for ex in exs]
@@ -162,6 +213,11 @@ def home():
                 for p in UserProgression.query.filter_by(user_id=current_user.id).all()
             }
 
+        plan = _today_plan()
+        if plan:
+            plan['label'] = _routine_display_name(plan['routine_type'], ai_programs)
+            today_plan = plan
+
     return render_template(
         'home.html',
         routine=routine_data,
@@ -172,6 +228,7 @@ def home():
         hidden_count=hidden_count,
         ai_program=ai_program,
         ai_programs=ai_programs,
+        today_plan=today_plan,
     )
 
 
@@ -559,16 +616,251 @@ def maybe_advance_progression(user, exercise_name, reps_list):
 @main.route('/progress')
 @login_required
 def progress():
+    return redirect(url_for('main.dashboard'))
+
+
+@main.route('/dashboard')
+@login_required
+def dashboard():
     user_progressions = UserProgression.query.filter_by(user_id=current_user.id).all()
     progression_data = current_app.config['PROGRESSION_DATA']
-    recent_workouts = Workout.query.filter_by(user_id=current_user.id).order_by(Workout.date.desc()).limit(5).all()
+    recent_workouts = (Workout.query.filter_by(user_id=current_user.id)
+                       .order_by(Workout.date.desc()).limit(10).all())
+
+    all_workouts = Workout.query.filter_by(user_id=current_user.id).all()
+    total_workouts = len(all_workouts)
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+
+    workouts_this_week = sum(
+        1 for w in all_workouts
+        if w.date.date() >= week_start
+    )
+    workouts_this_month = sum(
+        1 for w in all_workouts
+        if w.date.date() >= month_start
+    )
+
+    # Workouts per ISO week for the last 12 weeks
+    twelve_weeks_ago = today - timedelta(weeks=12)
+    recent = [w for w in all_workouts if w.date.date() >= twelve_weeks_ago]
+    freq_by_week = {}
+    for w in recent:
+        iso_week = w.date.date().isocalendar()
+        key = f"{iso_week[0]}-W{iso_week[1]:02d}"
+        freq_by_week[key] = freq_by_week.get(key, 0) + 1
+    # Build ordered list for last 12 weeks (fills zeros for empty weeks)
+    freq_labels = []
+    freq_values = []
+    for i in range(11, -1, -1):
+        d = today - timedelta(weeks=i)
+        iso = d.isocalendar()
+        key = f"{iso[0]}-W{iso[1]:02d}"
+        freq_labels.append(f"W{iso[1]}")
+        freq_values.append(freq_by_week.get(key, 0))
+
+    # Routine breakdown
+    routine_counts = {}
+    for w in all_workouts:
+        routine_counts[w.routine_type] = routine_counts.get(w.routine_type, 0) + 1
+
+    ai_programs = (GeneratedProgram.query
+                   .filter_by(user_id=current_user.id, is_draft=False)
+                   .order_by(GeneratedProgram.created_at).all())
+
+    def _routine_label(rt):
+        if rt == 'bwf':
+            return 'BWF'
+        if rt == 'gym':
+            return 'Gym'
+        for p in ai_programs:
+            if p.routine_key == rt:
+                return p.name
+        return rt
+
+    routine_breakdown = [
+        {'label': _routine_label(rt), 'count': cnt}
+        for rt, cnt in sorted(routine_counts.items(), key=lambda x: -x[1])
+    ]
+
+    # Top 10 exercises by session count
+    exercise_freq = (
+        db.session.query(ExerciseLog.exercise_name, func.count(ExerciseLog.id).label('cnt'))
+        .join(Workout)
+        .filter(Workout.user_id == current_user.id)
+        .group_by(ExerciseLog.exercise_name)
+        .order_by(func.count(ExerciseLog.id).desc())
+        .limit(10)
+        .all()
+    )
+    top_exercises = [{'name': name, 'count': cnt} for name, cnt in exercise_freq]
+
+    # Weight trends: top 5 weighted exercises, max weight per workout date
+    weighted_exercises = (
+        db.session.query(ExerciseLog.exercise_name, func.count(ExerciseLog.id).label('cnt'))
+        .join(Workout)
+        .filter(
+            Workout.user_id == current_user.id,
+            ExerciseLog.weight_per_set.isnot(None),
+        )
+        .group_by(ExerciseLog.exercise_name)
+        .order_by(func.count(ExerciseLog.id).desc())
+        .limit(5)
+        .all()
+    )
+
+    weight_trends = {}
+    for ex_name, _ in weighted_exercises:
+        logs = (
+            db.session.query(Workout.date, ExerciseLog.weight_per_set, ExerciseLog.weight_unit)
+            .join(ExerciseLog, ExerciseLog.workout_id == Workout.id)
+            .filter(
+                Workout.user_id == current_user.id,
+                ExerciseLog.exercise_name == ex_name,
+                ExerciseLog.weight_per_set.isnot(None),
+            )
+            .order_by(Workout.date)
+            .all()
+        )
+        points = []
+        for workout_date, weight_str, unit in logs:
+            try:
+                weights = [float(w) for w in weight_str.split(',') if w and w != '0']
+                if not weights:
+                    continue
+                max_w = max(weights)
+                # Normalise to kg for consistent charting
+                if unit == 'lbs':
+                    max_w = round(max_w * 0.453592, 1)
+                points.append({'date': workout_date.strftime('%Y-%m-%d'), 'weight': max_w})
+            except (ValueError, AttributeError):
+                continue
+        if points:
+            weight_trends[ex_name] = points
 
     return render_template(
-        'progress.html',
+        'dashboard.html',
         user_progressions=user_progressions,
         progression_data=progression_data,
         recent_workouts=recent_workouts,
+        total_workouts=total_workouts,
+        workouts_this_week=workouts_this_week,
+        workouts_this_month=workouts_this_month,
+        freq_labels=freq_labels,
+        freq_values=freq_values,
+        routine_breakdown=routine_breakdown,
+        top_exercises=top_exercises,
+        weight_trends=weight_trends,
     )
+
+
+# ── Scheduling ────────────────────────────────────────────────
+
+
+@main.route('/schedule')
+@login_required
+def schedule():
+    ai_programs = (GeneratedProgram.query
+                   .filter_by(user_id=current_user.id, is_draft=False)
+                   .order_by(GeneratedProgram.created_at).all())
+
+    rotation = (RotationEntry.query
+                .filter_by(user_id=current_user.id)
+                .order_by(RotationEntry.position)
+                .all())
+
+    today = date.today()
+    two_weeks = [today + timedelta(days=i) for i in range(14)]
+    scheduled = {
+        s.scheduled_date: s
+        for s in WorkoutSchedule.query.filter(
+            WorkoutSchedule.user_id == current_user.id,
+            WorkoutSchedule.scheduled_date >= today,
+            WorkoutSchedule.scheduled_date <= today + timedelta(days=13),
+        ).all()
+    }
+
+    calendar_days = []
+    for d in two_weeks:
+        entry = scheduled.get(d)
+        calendar_days.append({
+            'date': d,
+            'date_str': d.strftime('%Y-%m-%d'),
+            'label': d.strftime('%a %-d'),
+            'routine_type': entry.routine_type if entry else None,
+            'schedule_id': entry.id if entry else None,
+        })
+
+    all_routines = [
+        {'key': 'bwf', 'label': 'BWF'},
+        {'key': 'gym', 'label': 'Gym'},
+    ] + [{'key': p.routine_key, 'label': p.name} for p in ai_programs]
+
+    return render_template(
+        'schedule.html',
+        rotation=rotation,
+        calendar_days=calendar_days,
+        all_routines=all_routines,
+        today=today,
+    )
+
+
+@main.route('/schedule/rotation', methods=['POST'])
+@login_required
+def save_rotation():
+    routine_types = request.json.get('rotation', []) if request.is_json else []
+    # Validate each entry
+    valid = [rt for rt in routine_types if _valid_routine_key(rt)]
+    RotationEntry.query.filter_by(user_id=current_user.id).delete()
+    for i, rt in enumerate(valid):
+        db.session.add(RotationEntry(
+            user_id=current_user.id,
+            routine_type=rt,
+            position=i,
+        ))
+    db.session.commit()
+    return jsonify({'status': 'ok'})
+
+
+@main.route('/schedule/plan', methods=['POST'])
+@login_required
+def plan_workout():
+    data = request.json or {}
+    date_str = data.get('date', '')
+    routine_type = data.get('routine_type', '')
+    try:
+        scheduled_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'status': 'error', 'message': 'Invalid date'}), 400
+    if not _valid_routine_key(routine_type):
+        return jsonify({'status': 'error', 'message': 'Invalid routine'}), 400
+
+    existing = WorkoutSchedule.query.filter_by(
+        user_id=current_user.id, scheduled_date=scheduled_date).first()
+    if existing:
+        existing.routine_type = routine_type
+        entry = existing
+    else:
+        entry = WorkoutSchedule(
+            user_id=current_user.id,
+            routine_type=routine_type,
+            scheduled_date=scheduled_date,
+        )
+        db.session.add(entry)
+    db.session.commit()
+    return jsonify({'status': 'ok', 'id': entry.id})
+
+
+@main.route('/schedule/plan/<int:schedule_id>', methods=['DELETE'])
+@login_required
+def unplan_workout(schedule_id):
+    entry = db.session.get(WorkoutSchedule, schedule_id)
+    if entry and entry.user_id == current_user.id:
+        db.session.delete(entry)
+        db.session.commit()
+    return jsonify({'status': 'ok'})
 
 
 @main.route('/workout/<int:workout_id>')
