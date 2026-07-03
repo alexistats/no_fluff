@@ -9,11 +9,16 @@ class FakeForm(dict):
 
 
 def test_parse_gym_sets_collects_filled_sets():
-    form = FakeForm({
-        'weight_set_1': '95', 'reps_set_1': '10',
-        'weight_set_2': '95', 'reps_set_2': '8',
-        'weight_set_3': '', 'reps_set_3': '',
-    })
+    form = FakeForm(
+        {
+            'weight_set_1': '95',
+            'reps_set_1': '10',
+            'weight_set_2': '95',
+            'reps_set_2': '8',
+            'weight_set_3': '',
+            'reps_set_3': '',
+        }
+    )
     weights, reps = parse_gym_sets(form)
     assert weights == ['95', '95']
     assert reps == ['10', '8']

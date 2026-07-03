@@ -4,6 +4,7 @@ Builds a personalized program (goal, equipment, availability) in the same
 JSON shape as data/gym_routine.json so generated programs get all existing
 features: per-set logging, rest timers, last-session prefill, customization.
 """
+
 import json
 
 import anthropic
@@ -11,48 +12,54 @@ from flask import current_app
 
 from app.models import UserApiKey
 
-MODEL = "claude-opus-4-8"
+MODEL = 'claude-opus-4-8'
 ALLOWED_EQUIPMENT = ('barbell', 'dumbbell', 'machine', 'bodyweight')
 MAX_SECTIONS = 7
 MAX_EXERCISES_PER_SECTION = 12
 MAX_SETS = 5
 
 PROGRAM_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "program_name": {"type": "string"},
-        "description": {"type": "string"},
-        "sections": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "exercises": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string"},
-                                "sets": {"type": "string", "enum": ["1", "2", "3", "4", "5"]},
-                                "reps": {"type": "string"},
-                                "weighted": {"type": "boolean"},
-                                "equipment": {"type": "string", "enum": list(ALLOWED_EQUIPMENT)},
-                                "description": {"type": "string"},
+    'type': 'object',
+    'properties': {
+        'program_name': {'type': 'string'},
+        'description': {'type': 'string'},
+        'sections': {
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'properties': {
+                    'name': {'type': 'string'},
+                    'exercises': {
+                        'type': 'array',
+                        'items': {
+                            'type': 'object',
+                            'properties': {
+                                'name': {'type': 'string'},
+                                'sets': {'type': 'string', 'enum': ['1', '2', '3', '4', '5']},
+                                'reps': {'type': 'string'},
+                                'weighted': {'type': 'boolean'},
+                                'equipment': {'type': 'string', 'enum': list(ALLOWED_EQUIPMENT)},
+                                'description': {'type': 'string'},
                             },
-                            "required": ["name", "sets", "reps", "weighted",
-                                         "equipment", "description"],
-                            "additionalProperties": False,
+                            'required': [
+                                'name',
+                                'sets',
+                                'reps',
+                                'weighted',
+                                'equipment',
+                                'description',
+                            ],
+                            'additionalProperties': False,
                         },
                     },
                 },
-                "required": ["name", "exercises"],
-                "additionalProperties": False,
+                'required': ['name', 'exercises'],
+                'additionalProperties': False,
             },
         },
     },
-    "required": ["program_name", "description", "sections"],
-    "additionalProperties": False,
+    'required': ['program_name', 'description', 'sections'],
+    'additionalProperties': False,
 }
 
 SYSTEM_PROMPT = """You are an expert strength and conditioning coach. You design \
@@ -79,17 +86,15 @@ posterior chain and intervals support for running)."""
 
 GENERATION_ERROR_HINTS = {
     # APITimeoutError subclasses APIConnectionError — keep it first
-    anthropic.APITimeoutError:
-        'The coach took too long to respond. Try again — it usually works '
-        'on the second attempt.',
-    anthropic.AuthenticationError:
-        'The Claude API key was rejected. Check it in Settings.',
-    anthropic.PermissionDeniedError:
-        'The Claude API key does not have permission for this request.',
-    anthropic.RateLimitError:
-        'The Claude API is rate-limiting requests right now. Try again in a minute.',
-    anthropic.APIConnectionError:
-        'Could not reach the Claude API. Check your connection and try again.',
+    anthropic.APITimeoutError: 'The coach took too long to respond. Try again — it usually works '
+    'on the second attempt.',
+    anthropic.AuthenticationError: 'The Claude API key was rejected. Check it in Settings.',
+    anthropic.PermissionDeniedError: 'The Claude API key does not have permission '
+    'for this request.',
+    anthropic.RateLimitError: 'The Claude API is rate-limiting requests right now. '
+    'Try again in a minute.',
+    anthropic.APIConnectionError: 'Could not reach the Claude API. '
+    'Check your connection and try again.',
 }
 
 
@@ -109,15 +114,15 @@ def describe_inputs(inputs):
     """Render the generation form inputs as the user-turn prompt."""
     equipment = ', '.join(inputs.get('equipment', [])) or 'bodyweight only'
     lines = [
-        f"Goal: {inputs['goal']}",
-        f"Available equipment: {equipment}",
-        f"Training days per week: {inputs['days_per_week']}",
-        f"Time per session: about {inputs['session_length']} minutes",
-        f"Experience level: {inputs['experience']}",
+        f'Goal: {inputs["goal"]}',
+        f'Available equipment: {equipment}',
+        f'Training days per week: {inputs["days_per_week"]}',
+        f'Time per session: about {inputs["session_length"]} minutes',
+        f'Experience level: {inputs["experience"]}',
     ]
     if inputs.get('notes'):
-        lines.append(f"Other notes: {inputs['notes']}")
-    lines.append("Design my workout program.")
+        lines.append(f'Other notes: {inputs["notes"]}')
+    lines.append('Design my workout program.')
     return '\n'.join(lines)
 
 
@@ -127,13 +132,16 @@ def generate_program(api_key, inputs, previous_program=None, feedback=None):
     routine is {"Section name": [exercise dicts]} — the gym_routine.json shape.
     Raises GenerationError with a user-facing message on failure.
     """
-    messages = [{"role": "user", "content": describe_inputs(inputs)}]
+    messages = [{'role': 'user', 'content': describe_inputs(inputs)}]
     if previous_program is not None and feedback:
-        messages.append({"role": "assistant",
-                         "content": json.dumps(previous_program)})
-        messages.append({"role": "user", "content":
-                         f"Revise the program with this feedback: {feedback}\n"
-                         "Keep everything that wasn't criticized."})
+        messages.append({'role': 'assistant', 'content': json.dumps(previous_program)})
+        messages.append(
+            {
+                'role': 'user',
+                'content': f'Revise the program with this feedback: {feedback}\n'
+                "Keep everything that wasn't criticized.",
+            }
+        )
 
     # Fail with a friendly message well before gunicorn's worker timeout
     # (--timeout 300) would kill the request mid-flight.
@@ -144,23 +152,21 @@ def generate_program(api_key, inputs, previous_program=None, feedback=None):
             response = client.messages.create(
                 model=MODEL,
                 max_tokens=16000,
-                thinking={"type": "adaptive"},
+                thinking={'type': 'adaptive'},
                 system=SYSTEM_PROMPT,
                 messages=messages,
                 output_config={
                     # medium effort keeps generation fast enough for a
                     # synchronous web request without hurting program quality
-                    "effort": "medium",
-                    "format": {"type": "json_schema",
-                               "schema": PROGRAM_SCHEMA},
+                    'effort': 'medium',
+                    'format': {'type': 'json_schema', 'schema': PROGRAM_SCHEMA},
                 },
             )
         except anthropic.APIError as exc:
             for exc_type, hint in GENERATION_ERROR_HINTS.items():
                 if isinstance(exc, exc_type):
                     raise GenerationError(hint) from exc
-            raise GenerationError(
-                'The Claude API returned an error. Try again shortly.') from exc
+            raise GenerationError('The Claude API returned an error. Try again shortly.') from exc
 
         text = next((b.text for b in response.content if b.type == 'text'), '')
         try:
@@ -170,8 +176,8 @@ def generate_program(api_key, inputs, previous_program=None, feedback=None):
             last_error = exc
 
     raise GenerationError(
-        'Claude returned an invalid program twice in a row. '
-        'Try again or rephrase your goal.') from last_error
+        'Claude returned an invalid program twice in a row. Try again or rephrase your goal.'
+    ) from last_error
 
 
 def validate_program(data):
@@ -202,14 +208,16 @@ def validate_program(data):
                 raise ValueError(f'{name!r}: bad equipment {ex["equipment"]!r}')
             if not ex['reps'].strip():
                 raise ValueError(f'{name!r}: empty reps')
-            cleaned.append({
-                'name': name[:100],
-                'sets': ex['sets'],
-                'reps': ex['reps'].strip()[:20],
-                'weighted': bool(ex['weighted']),
-                'equipment': ex['equipment'],
-                'description': ex['description'].strip(),
-            })
+            cleaned.append(
+                {
+                    'name': name[:100],
+                    'sets': ex['sets'],
+                    'reps': ex['reps'].strip()[:20],
+                    'weighted': bool(ex['weighted']),
+                    'equipment': ex['equipment'],
+                    'description': ex['description'].strip(),
+                }
+            )
         routine[section_name[:50]] = cleaned
 
     name = data['program_name'].strip()[:100] or 'AI Program'

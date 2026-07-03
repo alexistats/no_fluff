@@ -1,5 +1,4 @@
-from app import db
-from app.models import User, Workout, ExerciseLog
+from app.models import ExerciseLog, User, Workout
 
 
 def test_home_shows_bwf_routine(client):
@@ -15,11 +14,15 @@ def test_home_shows_gym_routine(client):
 
 
 def test_register_rejects_short_password(client):
-    resp = client.post('/register', data={
-        'username': 'shorty',
-        'email': 'shorty@example.com',
-        'password': 'short',
-    }, follow_redirects=True)
+    resp = client.post(
+        '/register',
+        data={
+            'username': 'shorty',
+            'email': 'shorty@example.com',
+            'password': 'short',
+        },
+        follow_redirects=True,
+    )
     assert b'at least 8 characters' in resp.data
 
 
@@ -36,15 +39,22 @@ def test_full_gym_workout_flow(logged_in_client, app):
     resp = client.get('/start_workout?routine_type=gym', follow_redirects=True)
     assert b'Workout started' in resp.data
 
-    resp = client.post('/log_exercise/Bench Press', data={
-        'routine': 'gym',
-        'section': 'Push',
-        'index': '0',
-        'weight_unit': 'lbs',
-        'weight_set_1': '95', 'reps_set_1': '10',
-        'weight_set_2': '95', 'reps_set_2': '8',
-        'weight_set_3': '90', 'reps_set_3': '6',
-    }, follow_redirects=True)
+    resp = client.post(
+        '/log_exercise/Bench Press',
+        data={
+            'routine': 'gym',
+            'section': 'Push',
+            'index': '0',
+            'weight_unit': 'lbs',
+            'weight_set_1': '95',
+            'reps_set_1': '10',
+            'weight_set_2': '95',
+            'reps_set_2': '8',
+            'weight_set_3': '90',
+            'reps_set_3': '6',
+        },
+        follow_redirects=True,
+    )
     assert b'Exercise logged' in resp.data
 
     with app.app_context():
@@ -70,31 +80,47 @@ def test_empty_workout_is_cancelled(logged_in_client, app):
 
 
 def test_log_exercise_requires_active_workout(logged_in_client):
-    resp = logged_in_client.post('/log_exercise/Bench Press', data={
-        'routine': 'gym', 'section': 'Push', 'index': '0',
-        'weight_set_1': '95', 'reps_set_1': '10',
-    }, follow_redirects=True)
+    resp = logged_in_client.post(
+        '/log_exercise/Bench Press',
+        data={
+            'routine': 'gym',
+            'section': 'Push',
+            'index': '0',
+            'weight_set_1': '95',
+            'reps_set_1': '10',
+        },
+        follow_redirects=True,
+    )
     assert b'No active workout' in resp.data
 
 
 def test_workout_detail_blocked_for_other_users(logged_in_client, app):
     client = logged_in_client
     client.get('/start_workout?routine_type=gym')
-    client.post('/log_exercise/Bench Press', data={
-        'routine': 'gym', 'section': 'Push', 'index': '0',
-        'weight_set_1': '95', 'reps_set_1': '10',
-    })
+    client.post(
+        '/log_exercise/Bench Press',
+        data={
+            'routine': 'gym',
+            'section': 'Push',
+            'index': '0',
+            'weight_set_1': '95',
+            'reps_set_1': '10',
+        },
+    )
     client.get('/end_workout')
 
     with app.app_context():
         workout_id = Workout.query.first().id
 
     client.get('/logout')
-    client.post('/register', data={
-        'username': 'intruder',
-        'email': 'intruder@example.com',
-        'password': 'intruderpass1',
-    })
+    client.post(
+        '/register',
+        data={
+            'username': 'intruder',
+            'email': 'intruder@example.com',
+            'password': 'intruderpass1',
+        },
+    )
     client.post('/login', data={'username': 'intruder', 'password': 'intruderpass1'})
 
     resp = client.get(f'/workout/{workout_id}', follow_redirects=True)
@@ -104,11 +130,17 @@ def test_workout_detail_blocked_for_other_users(logged_in_client, app):
 def test_home_page_prefills_last_gym_log(logged_in_client):
     client = logged_in_client
     client.get('/start_workout?routine_type=gym')
-    client.post('/log_exercise/Bench Press', data={
-        'routine': 'gym', 'section': 'Push', 'index': '0',
-        'weight_unit': 'lbs',
-        'weight_set_1': '105', 'reps_set_1': '9',
-    })
+    client.post(
+        '/log_exercise/Bench Press',
+        data={
+            'routine': 'gym',
+            'section': 'Push',
+            'index': '0',
+            'weight_unit': 'lbs',
+            'weight_set_1': '105',
+            'reps_set_1': '9',
+        },
+    )
 
     resp = client.get('/?routine=gym')
     assert resp.status_code == 200
@@ -128,21 +160,29 @@ def test_home_defaults_to_last_used_routine(logged_in_client):
 def test_add_and_remove_custom_exercise(logged_in_client):
     client = logged_in_client
 
-    resp = client.post('/routine/add_exercise', data={
-        'section': 'Push',
-        'name': 'Incline Press',
-        'sets': '4',
-        'reps': '8-10',
-        'equipment': 'dumbbell',
-    }, follow_redirects=True)
+    resp = client.post(
+        '/routine/add_exercise',
+        data={
+            'section': 'Push',
+            'name': 'Incline Press',
+            'sets': '4',
+            'reps': '8-10',
+            'equipment': 'dumbbell',
+        },
+        follow_redirects=True,
+    )
     assert b'Incline Press' in resp.data
     assert b'custom' in resp.data
 
-    resp = client.post('/routine/add_exercise', data={
-        'section': 'Push',
-        'name': 'Incline Press',
-        'equipment': 'dumbbell',
-    }, follow_redirects=True)
+    resp = client.post(
+        '/routine/add_exercise',
+        data={
+            'section': 'Push',
+            'name': 'Incline Press',
+            'equipment': 'dumbbell',
+        },
+        follow_redirects=True,
+    )
     assert b'already in your routine' in resp.data
 
     client.post('/routine/remove_exercise', data={'name': 'Incline Press'})

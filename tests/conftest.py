@@ -27,13 +27,19 @@ def client(app):
 
 @pytest.fixture
 def logged_in_client(client):
-    client.post('/register', data={
-        'username': 'testuser',
-        'email': 'test@example.com',
-        'password': 'testpassword123',
-    })
-    client.post('/login', data={
-        'username': 'testuser',
-        'password': 'testpassword123',
-    })
+    client.post(
+        '/register',
+        data={
+            'username': 'testuser',
+            'email': 'test@example.com',
+            'password': 'testpassword123',
+        },
+    )
+    client.post(
+        '/login',
+        data={
+            'username': 'testuser',
+            'password': 'testpassword123',
+        },
+    )
     return client

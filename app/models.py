@@ -1,15 +1,17 @@
-from app import db, login_manager
-from flask import current_app
-from flask_login import UserMixin
-from datetime import datetime, timezone
-from cryptography.fernet import Fernet
 import base64
 import hashlib
 import json
+from datetime import UTC, datetime
+
+from cryptography.fernet import Fernet
+from flask import current_app
+from flask_login import UserMixin
+
+from app import db, login_manager
 
 
 def utc_now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @login_manager.user_loader
@@ -61,6 +63,7 @@ class ExerciseLog(db.Model):
 
 class CustomExercise(db.Model):
     """A user-added exercise overlaid on the built-in routine."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     routine_type = db.Column(db.String(20), default='gym')
@@ -86,6 +89,7 @@ class CustomExercise(db.Model):
 
 class HiddenExercise(db.Model):
     """A built-in exercise the user removed from their routine view."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     routine_type = db.Column(db.String(20), default='gym')
@@ -100,6 +104,7 @@ def _fernet():
 
 class UserApiKey(db.Model):
     """A user's own LLM API key, stored encrypted. Overrides the server key."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True)
     provider = db.Column(db.String(20), default='anthropic')
@@ -119,13 +124,14 @@ class UserApiKey(db.Model):
 
 class GeneratedProgram(db.Model):
     """An AI-generated workout program. Draft until accepted on preview."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     name = db.Column(db.String(100))
     goal = db.Column(db.String(200))
     description = db.Column(db.Text, default='')
     program_json = db.Column(db.Text)  # {"Section": [gym-schema exercise dicts]}
-    inputs_json = db.Column(db.Text)   # generation form inputs, kept for retries
+    inputs_json = db.Column(db.Text)  # generation form inputs, kept for retries
     is_draft = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=utc_now)
 
@@ -151,6 +157,7 @@ class UserProgression(db.Model):
 
 class RotationEntry(db.Model):
     """One step in the user's preferred workout rotation sequence."""
+
     __tablename__ = 'rotation_entry'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -161,6 +168,7 @@ class RotationEntry(db.Model):
 
 class WorkoutSchedule(db.Model):
     """A planned workout for a specific calendar date."""
+
     __tablename__ = 'workout_schedule'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
