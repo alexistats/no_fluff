@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+const CHART_DEFAULTS = {
+    font: { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", size: 12 },
+};
+Chart.defaults.font = CHART_DEFAULTS.font;
+
+function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function buildCharts() {
+    const text2 = cssVar('--text-2');
+    const border = cssVar('--border');
+    const accent = cssVar('--accent');
+    const surface2 = cssVar('--surface-2');
+
+    const gridOpts = {
+        color: border,
+        drawBorder: false,
+    };
+    const tickOpts = { color: text2 };
+
+    // ── Frequency bar chart ──
+    const freqCtx = document.getElementById('freqChart');
+    if (freqCtx) {
+        new Chart(freqCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ freq_labels | tojson }},
+                datasets: [{
+                    label: 'Workouts',
+                    data: {{ freq_values | tojson }},
+                    backgroundColor: accent,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: gridOpts, ticks: tickOpts },
+                    y: { grid: gridOpts, ticks: { ...tickOpts, stepSize: 1 }, beginAtZero: true },
+                }
+            }
+        });
+    }
+
+    // ── Routine breakdown horizontal bar ──
+    const routineCtx = document.getElementById('routineChart');
+    if (routineCtx) {
+        const routineData = {{ routine_breakdown | tojson }};
+        const palette = [accent, '#e67e22', '#27ae60', '#8e44ad', '#e74c3c'];
+        new Chart(routineCtx, {
+            type: 'bar',
+            data: {
+                labels: routineData.map(r => r.label),
+                datasets: [{
+                    label: 'Sessions',
+                    data: routineData.map(r => r.count),
+                    backgroundColor: routineData.map((_, i) => palette[i % palette.length]),
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: gridOpts, ticks: { ...tickOpts, stepSize: 1 }, beginAtZero: true },
+                    y: { grid: { display: false }, ticks: tickOpts },
+                }
+            }
+        });
+    }
+
+    // ── Top exercises horizontal bar ──
+    const exCtx = document.getElementById('exerciseChart');
+    if (exCtx) {
+        const exData = {{ top_exercises | tojson }};
+        new Chart(exCtx, {
+            type: 'bar',
+            data: {
+                labels: exData.map(e => e.name),
+                datasets: [{
+                    label: 'Sessions',
+                    data: exData.map(e => e.count),
+                    backgroundColor: accent,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: gridOpts, ticks: { ...tickOpts, stepSize: 1 }, beginAtZero: true },
+                    y: { grid: { display: false }, ticks: { color: text2, font: { size: 11 } } },
+                }
+            }
+        });
+    }
+
+    // ── Weight trends line chart ──
+    const weightCtx = document.getElementById('weightChart');
+    if (weightCtx) {
+        const trends = {{ weight_trends | tojson }};
+        const exercises = Object.keys(trends);
+        if (exercises.length === 0) {
+            weightCtx.closest('.dash-chart-wrap').innerHTML = '<p class="dash-empty">Log weighted exercises to see strength trends.</p>';
+            return;
+        }
+        const palette = [accent, '#e67e22', '#27ae60', '#8e44ad', '#e74c3c'];
+        // Collect all unique dates sorted
+        const allDates = [...new Set(
+            exercises.flatMap(ex => trends[ex].map(p => p.date))
+        )].sort();
+
+        const datasets = exercises.map((ex, i) => {
+            const byDate = Object.fromEntries(trends[ex].map(p => [p.date, p.weight]));
+            return {
+                label: ex,
+                data: allDates.map(d => byDate[d] ?? null),
+                borderColor: palette[i % palette.length],
+                backgroundColor: palette[i % palette.length] + '22',
+                tension: 0.3,
+                spanGaps: true,
+                pointRadius: 3,
+            };
+        });
+
+        new Chart(weightCtx, {
+            type: 'line',
+            data: { labels: allDates, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: text2, boxWidth: 12, padding: 16 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y} kg`
+                        }
+                    }
+                },
+                scales: {
+                    x: { grid: gridOpts, ticks: { color: text2, maxTicksLimit: 8 } },
+                    y: { grid: gridOpts, ticks: { color: text2 }, beginAtZero: false,
+                         title: { display: true, text: 'kg (normalised)', color: text2 } },
+                }
+            }
+        });
+    }
+}
+
+// Re-run if theme changes (colours update)
+document.addEventListener('DOMContentLoaded', buildCharts);
+document.addEventListener('themechange', () => {
+    Chart.instances && Object.values(Chart.instances).forEach(c => c.destroy());
+    buildCharts();
+});
+</script>
+{% endblock %}
+{% block content %}
+<div class="dash-container">
+    <h2 class="dash-title">Dashboard</h2>
+
+    {# ── Summary cards ── #}
+    <div class="dash-stats-row">
+        <div class="dash-stat-card">
+            <span class="dash-stat-num">{{ total_workouts }}</span>
+            <span class="dash-stat-label">Total workouts</span>
+        </div>
+        <div class="dash-stat-card">
+            <span class="dash-stat-num">{{ workouts_this_month }}</span>
+            <span class="dash-stat-label">This month</span>
+        </div>
+        <div class="dash-stat-card">
+            <span class="dash-stat-num">{{ workouts_this_week }}</span>
+            <span class="dash-stat-label">This week</span>
+        </div>
+    </div>
+
+    {% if total_workouts == 0 %}
+    <div class="dash-empty-state">
+        <p>No workouts logged yet. Start a workout to see your data here!</p>
+    </div>
+    {% else %}
+
+    {# ── Frequency ── #}
+    <div class="dash-section">
+        <h3 class="dash-section-title">Workout Frequency</h3>
+        <p class="dash-section-sub">Workouts per week, last 12 weeks</p>
+        <div class="dash-chart-wrap" style="height:180px">
+            <canvas id="freqChart"></canvas>
+        </div>
+    </div>
+
+    {# ── Routine breakdown ── #}
+    {% if routine_breakdown %}
+    <div class="dash-section">
+        <h3 class="dash-section-title">By Routine</h3>
+        <div class="dash-chart-wrap" style="height:{{ [routine_breakdown|length * 40, 100]|max }}px">
+            <canvas id="routineChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Top exercises ── #}
+    {% if top_exercises %}
+    <div class="dash-section">
+        <h3 class="dash-section-title">Most-Trained Exercises</h3>
+        <p class="dash-section-sub">By number of sessions logged</p>
+        <div class="dash-chart-wrap" style="height:{{ [top_exercises|length * 32, 120]|max }}px">
+            <canvas id="exerciseChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Strength trends ── #}
+    <div class="dash-section">
+        <h3 class="dash-section-title">Strength Trends</h3>
+        <p class="dash-section-sub">Max weight per session for top weighted exercises (normalised to kg)</p>
+        <div class="dash-chart-wrap" style="height:260px">
+            <canvas id="weightChart"></canvas>
+        </div>
+    </div>
+
+    {% endif %}{# end total_workouts > 0 #}
+
+    {# ── BWF Progressions ── #}
+    {% if user_progressions %}
+    <div class="dash-section">
+        <h3 class="dash-section-title">BWF Progressions</h3>
+        <div class="progression-cards">
+            {% for progression in user_progressions %}
+                {% set prog_data = progression_data.get(progression.exercise_category) %}
+                {% if prog_data %}
+                {% set current_exercise = prog_data|selectattr('level', 'eq', progression.current_progression)|first %}
+                <div class="progression-card">
+                    <h4>{{ progression.exercise_category }}</h4>
+                    <div class="progression-details">
+                        <p><strong>Level:</strong> {{ current_exercise.name }} ({{ progression.current_progression }}/{{ prog_data|length }})</p>
+                        <p><strong>Target:</strong> 3 × {{ progression.current_reps }} → goal 3 × 8</p>
+                        <p><strong>Updated:</strong> {{ progression.last_updated.strftime('%Y-%m-%d') }}</p>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Recent workouts ── #}
+    <div class="dash-section">
+        <h3 class="dash-section-title">Recent Workouts</h3>
+        {% if recent_workouts %}
+        <div class="workout-list">
+            {% for workout in recent_workouts %}
+            <div class="workout-card">
+                <h4>{{ workout.formatted_date() }}</h4>
+                <p>{{ workout.routine_type.upper() if workout.routine_type in ('bwf', 'gym') else workout.routine_type }} · {{ workout.exercises.count() }} exercises</p>
+                <a href="{{ url_for('main.view_workout', workout_id=workout.id) }}" class="btn secondary">View</a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="dash-empty">No workouts recorded yet.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

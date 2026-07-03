@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Schedule{% endblock %}
+{% block content %}
+<div class="schedule-container">
+    <h2>Workout Schedule</h2>
+
+    {# ── Rotation Setup ── #}
+    <div class="schedule-section">
+        <h3>Rotation</h3>
+        <p class="schedule-hint">Drag to reorder. The app will suggest the next routine in this sequence after each workout.</p>
+
+        <ul class="rotation-list" id="rotationList">
+            {% if rotation %}
+            {% for entry in rotation %}
+            <li class="rotation-item" draggable="true" data-routine="{{ entry.routine_type }}">
+                <span class="drag-handle">⠿</span>
+                <span class="rotation-label">
+                    {% for r in all_routines %}{% if r.key == entry.routine_type %}{{ r.label }}{% endif %}{% endfor %}
+                </span>
+                <button type="button" class="rotation-remove-btn" data-routine="{{ entry.routine_type }}" title="Remove from rotation">×</button>
+            </li>
+            {% endfor %}
+            {% else %}
+            <li class="rotation-empty" id="rotationEmpty">No rotation set — add routines below.</li>
+            {% endif %}
+        </ul>
+
+        <div class="rotation-add-row">
+            <select id="rotationAddSelect" class="rotation-add-select">
+                <option value="">Add routine to rotation…</option>
+                {% for r in all_routines %}
+                <option value="{{ r.key }}">{{ r.label }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="btn secondary" id="rotationAddBtn">Add</button>
+        </div>
+
+        <button type="button" class="btn primary" id="saveRotationBtn">Save Rotation</button>
+        <span class="save-status" id="rotationSaveStatus"></span>
+    </div>
+
+    {# ── 2-Week Calendar ── #}
+    <div class="schedule-section">
+        <h3>Upcoming 14 Days</h3>
+        <p class="schedule-hint">Tap a day to assign or clear a planned workout.</p>
+
+        <div class="cal-grid">
+            {% for day in calendar_days %}
+            <div class="cal-day {% if day.date == today %}cal-today{% endif %}"
+                 data-date="{{ day.date_str }}"
+                 data-schedule-id="{{ day.schedule_id or '' }}"
+                 data-routine="{{ day.routine_type or '' }}">
+                <span class="cal-day-label">{{ day.label }}</span>
+                <span class="cal-day-routine" id="cal-routine-{{ day.date_str }}">
+                    {% if day.routine_type %}
+                    {% for r in all_routines %}{% if r.key == day.routine_type %}<span class="cal-routine-badge">{{ r.label }}</span>{% endif %}{% endfor %}
+                    {% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+{# ── Day picker popover ── #}
+<div id="calPopover" class="cal-popover" hidden>
+    <p class="cal-popover-date" id="calPopoverDate"></p>
+    <ul class="cal-picker-list" id="calPickerList">
+        {% for r in all_routines %}
+        <li>
+            <button type="button" class="cal-picker-btn" data-routine="{{ r.key }}">{{ r.label }}</button>
+        </li>
+        {% endfor %}
+        <li><button type="button" class="cal-picker-btn cal-picker-clear" data-routine="">Clear</button></li>
+    </ul>
+</div>
+
+<script>
+(function () {
+    const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+
+    // ── Rotation drag-sort ──
+    const list = document.getElementById('rotationList');
+    let dragSrc = null;
+
+    list.addEventListener('dragstart', e => {
+        dragSrc = e.target.closest('.rotation-item');
+        if (dragSrc) dragSrc.classList.add('dragging');
+    });
+    list.addEventListener('dragover', e => {
+        e.preventDefault();
+        const target = e.target.closest('.rotation-item');
+        if (target && target !== dragSrc) {
+            const rect = target.getBoundingClientRect();
+            const after = e.clientY > rect.top + rect.height / 2;
+            list.insertBefore(dragSrc, after ? target.nextSibling : target);
+        }
+    });
+    list.addEventListener('dragend', () => {
+        if (dragSrc) dragSrc.classList.remove('dragging');
+        dragSrc = null;
+    });
+
+    // Remove from rotation
+    list.addEventListener('click', e => {
+        const btn = e.target.closest('.rotation-remove-btn');
+        if (!btn) return;
+        const item = btn.closest('.rotation-item');
+        if (item) item.remove();
+        if (!list.querySelector('.rotation-item')) {
+            const empty = document.createElement('li');
+            empty.className = 'rotation-empty';
+            empty.id = 'rotationEmpty';
+            empty.textContent = 'No rotation set — add routines below.';
+            list.appendChild(empty);
+        }
+    });
+
+    // Add to rotation
+    document.getElementById('rotationAddBtn').addEventListener('click', () => {
+        const sel = document.getElementById('rotationAddSelect');
+        const key = sel.value;
+        const label = sel.options[sel.selectedIndex].text;
+        if (!key) return;
+
+        const existing = list.querySelector(`.rotation-item[data-routine="${key}"]`);
+        if (existing) { sel.value = ''; return; }
+
+        const empty = document.getElementById('rotationEmpty');
+        if (empty) empty.remove();
+
+        const li = document.createElement('li');
+        li.className = 'rotation-item';
+        li.draggable = true;
+        li.dataset.routine = key;
+        li.innerHTML = `<span class="drag-handle">⠿</span><span class="rotation-label">${label}</span><button type="button" class="rotation-remove-btn" data-routine="${key}" title="Remove from rotation">×</button>`;
+        list.appendChild(li);
+        sel.value = '';
+    });
+
+    // Save rotation
+    document.getElementById('saveRotationBtn').addEventListener('click', async () => {
+        const items = [...list.querySelectorAll('.rotation-item')].map(el => el.dataset.routine);
+        const status = document.getElementById('rotationSaveStatus');
+        status.textContent = 'Saving…';
+        const res = await fetch('/schedule/rotation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({ rotation: items }),
+        });
+        status.textContent = res.ok ? 'Saved!' : 'Error saving.';
+        setTimeout(() => { status.textContent = ''; }, 2500);
+    });
+
+    // ── Calendar popover ──
+    const popover = document.getElementById('calPopover');
+    let activeDayEl = null;
+
+    function routineLabel(key) {
+        {% for r in all_routines %}
+        if (key === {{ r.key | tojson }}) return {{ r.label | tojson }};
+        {% endfor %}
+        return key;
+    }
+
+    function updateDayDisplay(dayEl, routineType, scheduleId) {
+        dayEl.dataset.routine = routineType || '';
+        dayEl.dataset.scheduleId = scheduleId || '';
+        const span = dayEl.querySelector('.cal-day-routine');
+        if (routineType) {
+            span.innerHTML = `<span class="cal-routine-badge">${routineLabel(routineType)}</span>`;
+        } else {
+            span.innerHTML = '';
+        }
+    }
+
+    document.querySelectorAll('.cal-day').forEach(day => {
+        day.addEventListener('click', e => {
+            if (activeDayEl === day && !popover.hidden) {
+                popover.hidden = true;
+                activeDayEl = null;
+                return;
+            }
+            activeDayEl = day;
+            document.getElementById('calPopoverDate').textContent = day.dataset.date;
+            const rect = day.getBoundingClientRect();
+            popover.hidden = false;
+            // Position below the cell
+            popover.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+            popover.style.left = Math.min(rect.left + window.scrollX, window.innerWidth - popover.offsetWidth - 12) + 'px';
+        });
+    });
+
+    document.addEventListener('click', e => {
+        if (!popover.hidden && !popover.contains(e.target) && !e.target.closest('.cal-day')) {
+            popover.hidden = true;
+            activeDayEl = null;
+        }
+    });
+
+    document.getElementById('calPickerList').addEventListener('click', async e => {
+        const btn = e.target.closest('.cal-picker-btn');
+        if (!btn || !activeDayEl) return;
+        const routineType = btn.dataset.routine;
+        const dateStr = activeDayEl.dataset.date;
+        const scheduleId = activeDayEl.dataset.scheduleId;
+
+        if (!routineType) {
+            // Clear
+            if (scheduleId) {
+                await fetch(`/schedule/plan/${scheduleId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRFToken': CSRF },
+                });
+                updateDayDisplay(activeDayEl, '', '');
+            }
+        } else {
+            const res = await fetch('/schedule/plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ date: dateStr, routine_type: routineType }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                updateDayDisplay(activeDayEl, routineType, data.id);
+            }
+        }
+        popover.hidden = true;
+        activeDayEl = null;
+    });
+})();
+</script>
+{% endblock %}

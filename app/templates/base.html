@@ -49,7 +49,8 @@
                     {% else %}
                         <a href="{{ url_for('main.start_workout', routine_type=session.get('current_routine_view', 'bwf')) }}">Start Workout</a>
                     {% endif %}
-                    <a href="{{ url_for('main.progress') }}">Progress</a>
+                    <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+                    <a href="{{ url_for('main.schedule') }}">Schedule</a>
                     <a href="{{ url_for('main.settings') }}">Settings</a>
                     <a href="{{ url_for('main.logout') }}">Logout</a>
                 {% else %}

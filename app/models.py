@@ -147,3 +147,25 @@ class UserProgression(db.Model):
     current_progression = db.Column(db.Integer)  # Index of current progression
     current_reps = db.Column(db.Integer, default=5)  # Current target reps
     last_updated = db.Column(db.DateTime, default=utc_now)
+
+
+class RotationEntry(db.Model):
+    """One step in the user's preferred workout rotation sequence."""
+    __tablename__ = 'rotation_entry'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    routine_type = db.Column(db.String(50), nullable=False)
+    position = db.Column(db.Integer, nullable=False)
+    label = db.Column(db.String(100))
+
+
+class WorkoutSchedule(db.Model):
+    """A planned workout for a specific calendar date."""
+    __tablename__ = 'workout_schedule'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    routine_type = db.Column(db.String(50), nullable=False)
+    scheduled_date = db.Column(db.Date, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'scheduled_date', name='uq_user_schedule_date'),
+    )
