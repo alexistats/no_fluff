@@ -3,7 +3,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from flask import current_app
 from flask_login import UserMixin
 
@@ -97,7 +97,15 @@ class HiddenExercise(db.Model):
 
 
 def _fernet():
-    """Symmetric cipher keyed off SECRET_KEY — no extra env var needed."""
+    """Symmetric cipher for stored user API keys.
+
+    Prefers an explicit FERNET_KEY so SECRET_KEY can be rotated without
+    bricking stored keys; falls back to deriving a key from SECRET_KEY for
+    backward compatibility with existing deployments.
+    """
+    configured = current_app.config.get('FERNET_KEY')
+    if configured:
+        return Fernet(configured)
     digest = hashlib.sha256(current_app.config['SECRET_KEY'].encode()).digest()
     return Fernet(base64.urlsafe_b64encode(digest))
 
@@ -115,11 +123,21 @@ class UserApiKey(db.Model):
         self.encrypted_key = _fernet().encrypt(raw_key.encode()).decode()
 
     def get_key(self):
-        return _fernet().decrypt(self.encrypted_key.encode()).decode()
+        """Decrypt the stored key, or None if it can't be decrypted.
+
+        Returns None when the cipher key changed (e.g. SECRET_KEY was rotated
+        without a FERNET_KEY), so callers can prompt the user to re-enter it
+        instead of crashing.
+        """
+        try:
+            return _fernet().decrypt(self.encrypted_key.encode()).decode()
+        except InvalidToken:
+            return None
 
     def key_hint(self):
-        """Last 4 characters, for display without echoing the key."""
-        return self.get_key()[-4:]
+        """Last 4 characters, or None if the stored key can't be decrypted."""
+        key = self.get_key()
+        return key[-4:] if key else None
 
 
 class GeneratedProgram(db.Model):

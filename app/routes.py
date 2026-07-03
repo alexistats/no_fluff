@@ -292,12 +292,9 @@ def register():
             flash(f'Password must be at least {MIN_PASSWORD_LENGTH} characters.')
             return redirect(url_for('main.register'))
 
-        if User.query.filter_by(username=username).first():
-            flash('Username already exists')
-            return redirect(url_for('main.register'))
-
-        if User.query.filter_by(email=email).first():
-            flash('Email already registered')
+        # One generic message so we don't reveal which accounts already exist.
+        if User.query.filter((User.username == username) | (User.email == email)).first():
+            flash('Username or email already in use')
             return redirect(url_for('main.register'))
 
         user = User(username=username, email=email, password_hash=generate_password_hash(password))
@@ -979,6 +976,7 @@ def generate():
     try:
         name, description, routine = ai_generator.generate_program(api_key, inputs)
     except ai_generator.GenerationError as exc:
+        current_app.logger.warning('Program generation failed: %s', exc)
         flash(str(exc))
         return redirect(url_for('main.generate'))
 
@@ -1048,6 +1046,7 @@ def retry_program(program_id):
             api_key, program.inputs(), previous_program=program.routine_data(), feedback=feedback
         )
     except ai_generator.GenerationError as exc:
+        current_app.logger.warning('Program regeneration failed: %s', exc)
         flash(str(exc))
         return redirect(url_for('main.preview_program', program_id=program.id))
 
@@ -1102,8 +1101,10 @@ def settings():
                 flash('API key saved.')
         return redirect(url_for('main.settings'))
 
+    key_hint = record.key_hint() if record else None
     return render_template(
         'settings.html',
-        key_hint=record.key_hint() if record else None,
+        key_hint=key_hint,
+        key_undecryptable=bool(record) and key_hint is None,
         server_key_available=bool(current_app.config.get('ANTHROPIC_API_KEY')),
     )

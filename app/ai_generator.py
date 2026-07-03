@@ -103,10 +103,14 @@ class GenerationError(Exception):
 
 
 def resolve_api_key(user):
-    """User's stored key if present, else the server-wide key, else None."""
+    """User's stored key if present and decryptable, else the server key, else None."""
     record = UserApiKey.query.filter_by(user_id=user.id, provider='anthropic').first()
     if record:
-        return record.get_key()
+        key = record.get_key()
+        if key:
+            return key
+        # Stored key is undecryptable (e.g. SECRET_KEY rotated) — fall back to
+        # the server key rather than failing outright.
     return current_app.config.get('ANTHROPIC_API_KEY')
 
 
@@ -163,6 +167,7 @@ def generate_program(api_key, inputs, previous_program=None, feedback=None):
                 },
             )
         except anthropic.APIError as exc:
+            current_app.logger.exception('Claude API error during program generation')
             for exc_type, hint in GENERATION_ERROR_HINTS.items():
                 if isinstance(exc, exc_type):
                     raise GenerationError(hint) from exc
@@ -175,6 +180,7 @@ def generate_program(api_key, inputs, previous_program=None, feedback=None):
         except (ValueError, KeyError, TypeError) as exc:
             last_error = exc
 
+    current_app.logger.error('Claude returned an invalid program twice: %s', last_error)
     raise GenerationError(
         'Claude returned an invalid program twice in a row. Try again or rephrase your goal.'
     ) from last_error

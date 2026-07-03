@@ -51,14 +51,25 @@ The Python version is pinned in `.python-version` (3.13) — pyenv/uv pick it up
 | Environment variable | Purpose | Default |
 |---|---|---|
 | `DATABASE_URL` | SQLAlchemy database URL (`postgres://` URLs are normalized automatically) | `sqlite:///nofluff.db` |
-| `SECRET_KEY` | Flask session/CSRF signing key — **required in production** | insecure dev key (warns) |
+| `SECRET_KEY` | Flask session/CSRF signing key — **required in production** (the app refuses to start without it when `RENDER` or a non-SQLite `DATABASE_URL` is set) | insecure dev key (warns, local only) |
+| `FERNET_KEY` | Optional key (a `Fernet.generate_key()` value) for encrypting stored user API keys. When unset, one is derived from `SECRET_KEY`. Set it to decouple the two — see the note below. | derived from `SECRET_KEY` |
 | `ANTHROPIC_API_KEY` | Shared Claude API key for the AI program generator — optional; users can also save their own key in Settings (stored encrypted, takes precedence) | unset (feature prompts for a user key) |
+| `LOG_LEVEL` | Log level for the app logger (`DEBUG`, `INFO`, `WARNING`, …) | `INFO` |
+
+> **Rotating `SECRET_KEY`:** stored user API keys are encrypted with a key derived from `SECRET_KEY` by default, so rotating `SECRET_KEY` makes them undecryptable (the Settings page then prompts the user to re-enter their key rather than erroring). To rotate `SECRET_KEY` while preserving stored keys, first set `FERNET_KEY` to the currently derived value: `python -c "import base64,hashlib,os; print(base64.urlsafe_b64encode(hashlib.sha256(os.environ['SECRET_KEY'].encode()).digest()).decode())"`.
 
 ## Running tests
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
+```
+
+Linting and formatting (also enforced in CI):
+
+```bash
+ruff check .
+ruff format --check .
 ```
 
 The suite covers progression advancement rules, gym set parsing, the full register → login → workout → log flow, and permission checks.

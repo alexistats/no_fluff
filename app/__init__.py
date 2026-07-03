@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 from flask import Flask
@@ -14,9 +15,23 @@ login_manager.login_view = 'main.login'
 csrf = CSRFProtect()
 
 
+def _configure_logging(app):
+    """Send app.logger to stdout at LOG_LEVEL (default INFO) for Render logs."""
+    level = os.environ.get('LOG_LEVEL', 'INFO').upper()
+    app.logger.setLevel(level)
+    if not app.logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter('[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
+        )
+        app.logger.addHandler(handler)
+
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    _configure_logging(app)
 
     db.init_app(app)
     login_manager.init_app(app)
