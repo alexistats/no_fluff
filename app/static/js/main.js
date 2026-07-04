@@ -35,6 +35,45 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // ── Service worker (PWA) ───────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js').catch(function () {});
+        });
+    }
+
+    // ── Log-form drafts (survive a dropped connection / reload) ─────
+    function draftKey(form) {
+        return 'draft:' + form.getAttribute('action');
+    }
+    function saveDraft(form) {
+        const data = {};
+        form.querySelectorAll('input, textarea, select').forEach(function (el) {
+            if (!el.name || el.name === 'csrf_token' || el.type === 'submit') return;
+            data[el.name] = el.value;
+        });
+        try { localStorage.setItem(draftKey(form), JSON.stringify(data)); } catch (e) {}
+    }
+    function restoreDraft(form) {
+        let data;
+        try { data = JSON.parse(localStorage.getItem(draftKey(form)) || 'null'); } catch (e) { return; }
+        if (!data) return;
+        // A draft only exists because the user typed and didn't submit, so it
+        // reflects their latest intent — restore it over any prefilled default.
+        Object.keys(data).forEach(function (name) {
+            const el = form.querySelector('[name="' + (window.CSS ? CSS.escape(name) : name) + '"]');
+            if (el && data[name] !== '') el.value = data[name];
+        });
+    }
+    function clearDraft(form) {
+        try { localStorage.removeItem(draftKey(form)); } catch (e) {}
+    }
+    document.querySelectorAll('.exercise-log-form').forEach(restoreDraft);
+    document.addEventListener('input', function (e) {
+        const form = e.target.closest('.exercise-log-form');
+        if (form) saveDraft(form);
+    });
+
     // ── Unit state ─────────────────────────────────────────────────
     let currentUnit = localStorage.getItem('weightUnit') || 'lbs';
 
@@ -175,6 +214,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(function (data) {
                 restoreBtn();
                 if (data.status === 'ok') {
+                    clearDraft(form);
                     markCardDone(form.dataset.cardId, data.sets_completed);
                     collapseCard(form.dataset.cardId);
                     startTimer(data.rest_period, data.exercise_name);

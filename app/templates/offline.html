@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Offline{% endblock %}
+{% block content %}
+<div class="auth-container" style="text-align: center">
+    <h2>You're offline</h2>
+    <p class="settings-hint">
+        NoFluff can't reach the network right now. Pages you've already opened may
+        still work — reconnect to start or log workouts.
+    </p>
+    <p><a href="{{ url_for('main.home') }}" class="btn primary">Try again</a></p>
+</div>
+{% endblock %}

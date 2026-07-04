@@ -251,6 +251,22 @@ def home():
     )
 
 
+@main.route('/sw.js')
+def service_worker():
+    # Served from the root so its scope covers the whole app (a file under
+    # /static/ would be scoped to /static/ and couldn't handle navigations).
+    response = current_app.send_static_file('js/sw.js')
+    response.headers['Service-Worker-Allowed'] = '/'
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
+
+@main.route('/offline')
+def offline():
+    return render_template('offline.html')
+
+
 @main.route('/login', methods=['GET', 'POST'])
 @limiter.limit('5/minute', methods=['POST'])
 def login():
