@@ -15,6 +15,8 @@ class TestConfig(Config):
 @pytest.fixture
 def app():
     app = create_app(TestConfig)
+    with app.app_context():
+        db.create_all()
     yield app
     with app.app_context():
         db.drop_all()
@@ -27,13 +29,19 @@ def client(app):
 
 @pytest.fixture
 def logged_in_client(client):
-    client.post('/register', data={
-        'username': 'testuser',
-        'email': 'test@example.com',
-        'password': 'testpassword123',
-    })
-    client.post('/login', data={
-        'username': 'testuser',
-        'password': 'testpassword123',
-    })
+    client.post(
+        '/register',
+        data={
+            'username': 'testuser',
+            'email': 'test@example.com',
+            'password': 'testpassword123',
+        },
+    )
+    client.post(
+        '/login',
+        data={
+            'username': 'testuser',
+            'password': 'testpassword123',
+        },
+    )
     return client

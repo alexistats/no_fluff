@@ -1,41 +1,96 @@
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
-from flask_wtf import CSRFProtect
-from config import Config
 import json
+import logging
 import os
+
+from flask import Flask
+from flask_login import LoginManager
+from flask_migrate import Migrate
+from flask_sqlalchemy import SQLAlchemy
+from flask_wtf import CSRFProtect
+
+from config import Config
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 login_manager.login_view = 'main.login'
 csrf = CSRFProtect()
+migrate = Migrate()
+
+# Revision of the baseline migration — the schema as it existed before the
+# migration framework was added. Databases created by the old db.create_all()
+# are stamped here on first boot, then upgraded to head.
+BASELINE_REVISION = '0001_baseline'
+
+
+def _configure_logging(app):
+    """Send app.logger to stdout at LOG_LEVEL (default INFO) for Render logs."""
+    level = os.environ.get('LOG_LEVEL', 'INFO').upper()
+    app.logger.setLevel(level)
+    if not app.logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter('[%(asctime)s] %(levelname)s in %(module)s: %(message)s')
+        )
+        app.logger.addHandler(handler)
+
+
+def _run_migrations(app):
+    """Bring the schema up to date on startup — run.py is bypassed under gunicorn.
+
+    Databases that predate the migration framework have the baseline tables but
+    no alembic_version row; stamp them at the baseline first so Alembic doesn't
+    try to re-create existing tables, then upgrade to head.
+    """
+    from flask_migrate import stamp, upgrade
+    from sqlalchemy import inspect
+
+    migrations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'migrations')
+    if not os.path.isdir(migrations_dir):
+        app.logger.warning('No migrations directory found; skipping startup migration.')
+        return
+    try:
+        with app.app_context():
+            inspector = inspect(db.engine)
+            pre_migration = not inspector.has_table('alembic_version') and inspector.has_table(
+                'user'
+            )
+            if pre_migration:
+                app.logger.info('Stamping existing database at baseline %s', BASELINE_REVISION)
+                stamp(revision=BASELINE_REVISION)
+            upgrade()
+    except Exception:
+        app.logger.exception('Startup database migration failed')
 
 
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    _configure_logging(app)
+
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
+    # render_as_batch lets SQLite (dev) handle ALTER-style migrations too.
+    migrate.init_app(app, db, render_as_batch=True)
 
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 
-    with open(os.path.join(data_dir, 'routine_data.json'), 'r') as f:
+    with open(os.path.join(data_dir, 'routine_data.json')) as f:
         app.config['ROUTINE_DATA'] = json.load(f)
 
-    with open(os.path.join(data_dir, 'progressions.json'), 'r') as f:
+    with open(os.path.join(data_dir, 'progressions.json')) as f:
         app.config['PROGRESSION_DATA'] = json.load(f)
 
-    with open(os.path.join(data_dir, 'gym_routine.json'), 'r') as f:
+    with open(os.path.join(data_dir, 'gym_routine.json')) as f:
         app.config['GYM_ROUTINE_DATA'] = json.load(f)
 
     from app.routes import main
+
     app.register_blueprint(main)
 
-    # Create tables on startup — run.py is bypassed under gunicorn
-    with app.app_context():
-        db.create_all()
+    # Tests create their schema in the fixture; everywhere else, migrate on boot.
+    if not app.testing and os.environ.get('AUTO_MIGRATE', '1') != '0':
+        _run_migrations(app)
 
     return app

@@ -3,20 +3,41 @@ import json
 import pytest
 
 from app import ai_generator, db
-from app.models import (CustomExercise, ExerciseLog, GeneratedProgram,
-                        HiddenExercise, UserApiKey, Workout)
+from app.models import (
+    CustomExercise,
+    ExerciseLog,
+    GeneratedProgram,
+    HiddenExercise,
+    UserApiKey,
+    Workout,
+)
 
 SAMPLE_ROUTINE = {
     'Day 1 – Pull & Core': [
-        {'name': 'Band Pull-aparts', 'sets': '2', 'reps': '15',
-         'weighted': False, 'equipment': 'bodyweight',
-         'description': 'Warm up the shoulders.'},
-        {'name': 'Weighted Pull-ups', 'sets': '3', 'reps': '5-8',
-         'weighted': True, 'equipment': 'bodyweight',
-         'description': 'Full range of motion.'},
-        {'name': 'Dumbbell Row', 'sets': '3', 'reps': '8-12',
-         'weighted': True, 'equipment': 'dumbbell',
-         'description': 'Keep a flat back.'},
+        {
+            'name': 'Band Pull-aparts',
+            'sets': '2',
+            'reps': '15',
+            'weighted': False,
+            'equipment': 'bodyweight',
+            'description': 'Warm up the shoulders.',
+        },
+        {
+            'name': 'Weighted Pull-ups',
+            'sets': '3',
+            'reps': '5-8',
+            'weighted': True,
+            'equipment': 'bodyweight',
+            'description': 'Full range of motion.',
+        },
+        {
+            'name': 'Dumbbell Row',
+            'sets': '3',
+            'reps': '8-12',
+            'weighted': True,
+            'equipment': 'dumbbell',
+            'description': 'Keep a flat back.',
+        },
     ],
 }
 
@@ -42,6 +63,7 @@ def _create_program(app, is_draft=False, user_id=None):
     with app.app_context():
         if user_id is None:
             from app.models import User
+
             user_id = User.query.filter_by(username='testuser').first().id
         program = GeneratedProgram(
             user_id=user_id,
@@ -64,9 +86,13 @@ def _model_output(sections=None):
     return {
         'program_name': 'Climbing Strength',
         'description': 'A pull-focused program.',
-        'sections': sections if sections is not None else [
-            {'name': 'Day 1 – Pull & Core',
-             'exercises': list(SAMPLE_ROUTINE['Day 1 – Pull & Core'])},
+        'sections': sections
+        if sections is not None
+        else [
+            {
+                'name': 'Day 1 – Pull & Core',
+                'exercises': list(SAMPLE_ROUTINE['Day 1 – Pull & Core']),
+            },
         ],
     }
 
@@ -104,8 +130,7 @@ def test_validate_program_rejects_sets_out_of_range():
 def test_validate_program_rejects_too_many_sections():
     section = _model_output()['sections'][0]
     sections = [
-        {'name': f'Day {i}', 'exercises': [
-            dict(section['exercises'][0], name=f'Exercise {i}')]}
+        {'name': f'Day {i}', 'exercises': [dict(section['exercises'][0], name=f'Exercise {i}')]}
         for i in range(ai_generator.MAX_SECTIONS + 1)
     ]
     with pytest.raises(ValueError):
@@ -154,8 +179,7 @@ def test_generation_error_flashes_and_creates_nothing(app, logged_in_client, mon
         raise ai_generator.GenerationError('The Claude API key was rejected.')
 
     monkeypatch.setattr(ai_generator, 'generate_program', boom)
-    response = logged_in_client.post('/generate', data=_generate_form(),
-                                     follow_redirects=True)
+    response = logged_in_client.post('/generate', data=_generate_form(), follow_redirects=True)
     assert b'rejected' in response.data
     with app.app_context():
         assert GeneratedProgram.query.count() == 0
@@ -186,8 +210,7 @@ def test_retry_passes_feedback_and_overwrites_draft(app, logged_in_client, monke
         return 'Climbing Strength v2', 'Revised.', SAMPLE_ROUTINE
 
     monkeypatch.setattr(ai_generator, 'generate_program', fake_retry)
-    logged_in_client.post(f'/generate/retry/{program_id}',
-                          data={'feedback': 'less volume'})
+    logged_in_client.post(f'/generate/retry/{program_id}', data={'feedback': 'less volume'})
 
     assert captured['feedback'] == 'less volume'
     assert 'Day 1 – Pull & Core' in captured['previous']
@@ -197,16 +220,21 @@ def test_retry_passes_feedback_and_overwrites_draft(app, logged_in_client, monke
 
 
 def test_other_users_program_is_not_accessible(app, client):
-    client.post('/register', data={'username': 'testuser',
-                                   'email': 'test@example.com',
-                                   'password': 'testpassword123'})
+    client.post(
+        '/register',
+        data={'username': 'testuser', 'email': 'test@example.com', 'password': 'testpassword123'},
+    )
     program_id = _create_program(app, is_draft=False)
 
-    client.post('/register', data={'username': 'intruder',
-                                   'email': 'intruder@example.com',
-                                   'password': 'testpassword123'})
-    client.post('/login', data={'username': 'intruder',
-                                'password': 'testpassword123'})
+    client.post(
+        '/register',
+        data={
+            'username': 'intruder',
+            'email': 'intruder@example.com',
+            'password': 'testpassword123',
+        },
+    )
+    client.post('/login', data={'username': 'intruder', 'password': 'testpassword123'})
 
     page = client.get(f'/generate/preview/{program_id}', follow_redirects=True)
     assert b'Program not found.' in page.data
@@ -220,16 +248,19 @@ def test_log_exercise_against_ai_routine(app, logged_in_client):
     routine_key = f'ai-{program_id}'
 
     logged_in_client.get(f'/start_workout?routine_type={routine_key}')
-    response = logged_in_client.post('/log_exercise/Dumbbell Row', data={
-        'routine': routine_key,
-        'section': 'Day 1 – Pull & Core',
-        'index': '2',
-        'reps_set_1': '10',
-        'weight_set_1': '50',
-        'reps_set_2': '9',
-        'weight_set_2': '50',
-        'weight_unit': 'lbs',
-    })
+    response = logged_in_client.post(
+        '/log_exercise/Dumbbell Row',
+        data={
+            'routine': routine_key,
+            'section': 'Day 1 – Pull & Core',
+            'index': '2',
+            'reps_set_1': '10',
+            'weight_set_1': '50',
+            'reps_set_2': '9',
+            'weight_set_2': '50',
+            'weight_unit': 'lbs',
+        },
+    )
     assert response.status_code == 302
 
     with app.app_context():
@@ -243,20 +274,27 @@ def test_customize_ai_routine(app, logged_in_client):
     program_id = _create_program(app, is_draft=False)
     routine_key = f'ai-{program_id}'
 
-    logged_in_client.post('/routine/add_exercise', data={
-        'routine': routine_key,
-        'section': 'Day 1 – Pull & Core',
-        'name': 'Face Pulls',
-        'sets': '3',
-        'reps': '12-15',
-        'equipment': 'machine',
-    })
+    logged_in_client.post(
+        '/routine/add_exercise',
+        data={
+            'routine': routine_key,
+            'section': 'Day 1 – Pull & Core',
+            'name': 'Face Pulls',
+            'sets': '3',
+            'reps': '12-15',
+            'equipment': 'machine',
+        },
+    )
     # follow_redirects consumes the 'Removed "..."' flash so it can't
     # mask the assertion on the next page load
-    logged_in_client.post('/routine/remove_exercise', data={
-        'routine': routine_key,
-        'name': 'Band Pull-aparts',
-    }, follow_redirects=True)
+    logged_in_client.post(
+        '/routine/remove_exercise',
+        data={
+            'routine': routine_key,
+            'name': 'Band Pull-aparts',
+        },
+        follow_redirects=True,
+    )
 
     with app.app_context():
         assert CustomExercise.query.filter_by(routine_type=routine_key).count() == 1
@@ -270,8 +308,9 @@ def test_customize_ai_routine(app, logged_in_client):
 def test_delete_program_removes_overlays(app, logged_in_client):
     program_id = _create_program(app, is_draft=False)
     routine_key = f'ai-{program_id}'
-    logged_in_client.post('/routine/remove_exercise', data={
-        'routine': routine_key, 'name': 'Band Pull-aparts'})
+    logged_in_client.post(
+        '/routine/remove_exercise', data={'routine': routine_key, 'name': 'Band Pull-aparts'}
+    )
 
     logged_in_client.post(f'/program/delete/{program_id}')
 
@@ -307,5 +346,6 @@ def test_user_key_overrides_server_key(app, logged_in_client):
 
     with app.app_context():
         from app.models import User
+
         user = User.query.filter_by(username='testuser').first()
         assert ai_generator.resolve_api_key(user) == 'user-key'

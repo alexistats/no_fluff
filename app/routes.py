@@ -1,15 +1,35 @@
-from flask import (Blueprint, render_template, current_app, redirect, url_for,
-                   request, flash, session, jsonify, get_flashed_messages)
-from flask_login import login_required, current_user, login_user, logout_user
-from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import func
-from app.models import (User, Workout, ExerciseLog, UserProgression,
-                         CustomExercise, HiddenExercise, GeneratedProgram,
-                         UserApiKey, RotationEntry, WorkoutSchedule)
-from app import db
-from app import ai_generator
-from datetime import datetime, timezone, date, timedelta
 import json
+from datetime import UTC, date, datetime, timedelta
+
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    get_flashed_messages,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+from flask_login import current_user, login_required, login_user, logout_user
+from sqlalchemy import func
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from app import ai_generator, db
+from app.models import (
+    CustomExercise,
+    ExerciseLog,
+    GeneratedProgram,
+    HiddenExercise,
+    RotationEntry,
+    User,
+    UserApiKey,
+    UserProgression,
+    Workout,
+    WorkoutSchedule,
+)
 
 main = Blueprint('main', __name__)
 
@@ -20,8 +40,14 @@ ALLOWED_EQUIPMENT = ('barbell', 'dumbbell', 'machine', 'bodyweight')
 # What the generation form lets users tick — free-form context for the model,
 # not the same thing as the per-exercise equipment enum above.
 EQUIPMENT_CHOICES = (
-    'full gym membership', 'barbell and plates', 'dumbbells', 'kettlebells',
-    'pull-up bar', 'resistance bands', 'cardio machines', 'bodyweight only',
+    'full gym membership',
+    'barbell and plates',
+    'dumbbells',
+    'kettlebells',
+    'pull-up bar',
+    'resistance bands',
+    'cardio machines',
+    'bodyweight only',
 )
 EXPERIENCE_LEVELS = ('beginner', 'intermediate', 'advanced')
 
@@ -37,11 +63,11 @@ def _routine_with_overlays(base, routine_key):
 
     hidden = {
         h.exercise_name
-        for h in HiddenExercise.query.filter_by(
-            user_id=current_user.id, routine_type=routine_key)
+        for h in HiddenExercise.query.filter_by(user_id=current_user.id, routine_type=routine_key)
     }
     customs = CustomExercise.query.filter_by(
-        user_id=current_user.id, routine_type=routine_key).all()
+        user_id=current_user.id, routine_type=routine_key
+    ).all()
 
     routine = {
         section: [ex for ex in exercises if ex['name'] not in hidden]
@@ -59,8 +85,7 @@ def _gym_routine_for_user():
 
 def _ai_program_for_key(routine_key, include_draft=False):
     """Resolve an 'ai-<id>' routine key to the current user's program, or None."""
-    if (not routine_key or not routine_key.startswith('ai-')
-            or not current_user.is_authenticated):
+    if not routine_key or not routine_key.startswith('ai-') or not current_user.is_authenticated:
         return None
     try:
         program_id = int(routine_key[3:])
@@ -95,8 +120,9 @@ def _default_routine_view():
     view = session.get('current_routine_view')
     if view and _valid_routine_key(view):
         return view
-    last_workout = (Workout.query.filter_by(user_id=current_user.id)
-                    .order_by(Workout.id.desc()).first())
+    last_workout = (
+        Workout.query.filter_by(user_id=current_user.id).order_by(Workout.id.desc()).first()
+    )
     if last_workout and _valid_routine_key(last_workout.routine_type):
         return last_workout.routine_type
     return 'bwf'
@@ -111,19 +137,22 @@ def _today_plan():
         return None
     today = date.today()
     scheduled = WorkoutSchedule.query.filter_by(
-        user_id=current_user.id, scheduled_date=today).first()
+        user_id=current_user.id, scheduled_date=today
+    ).first()
     if scheduled and _valid_routine_key(scheduled.routine_type):
         return {'routine_type': scheduled.routine_type, 'source': 'scheduled'}
 
-    rotation = (RotationEntry.query
-                .filter_by(user_id=current_user.id)
-                .order_by(RotationEntry.position)
-                .all())
+    rotation = (
+        RotationEntry.query.filter_by(user_id=current_user.id)
+        .order_by(RotationEntry.position)
+        .all()
+    )
     if not rotation:
         return None
 
-    last_workout = (Workout.query.filter_by(user_id=current_user.id)
-                    .order_by(Workout.id.desc()).first())
+    last_workout = (
+        Workout.query.filter_by(user_id=current_user.id).order_by(Workout.id.desc()).first()
+    )
     if last_workout is None:
         candidate = rotation[0].routine_type
     else:
@@ -173,13 +202,16 @@ def home():
         routine_data = _routine_with_overlays(base, routine)
         if current_user.is_authenticated:
             hidden_count = HiddenExercise.query.filter_by(
-                user_id=current_user.id, routine_type=routine).count()
+                user_id=current_user.id, routine_type=routine
+            ).count()
 
     ai_programs = []
     if current_user.is_authenticated:
-        ai_programs = (GeneratedProgram.query
-                       .filter_by(user_id=current_user.id, is_draft=False)
-                       .order_by(GeneratedProgram.created_at).all())
+        ai_programs = (
+            GeneratedProgram.query.filter_by(user_id=current_user.id, is_draft=False)
+            .order_by(GeneratedProgram.created_at)
+            .all()
+        )
 
     last_logs = {}
     user_progressions = {}
@@ -189,15 +221,9 @@ def home():
     if current_user.is_authenticated:
         all_names = [ex['name'] for exs in routine_data.values() for ex in exs]
         subq = (
-            db.session.query(
-                ExerciseLog.exercise_name,
-                func.max(ExerciseLog.id).label('max_id')
-            )
+            db.session.query(ExerciseLog.exercise_name, func.max(ExerciseLog.id).label('max_id'))
             .join(Workout)
-            .filter(
-                Workout.user_id == current_user.id,
-                ExerciseLog.exercise_name.in_(all_names)
-            )
+            .filter(Workout.user_id == current_user.id, ExerciseLog.exercise_name.in_(all_names))
             .group_by(ExerciseLog.exercise_name)
             .subquery()
         )
@@ -266,12 +292,9 @@ def register():
             flash(f'Password must be at least {MIN_PASSWORD_LENGTH} characters.')
             return redirect(url_for('main.register'))
 
-        if User.query.filter_by(username=username).first():
-            flash('Username already exists')
-            return redirect(url_for('main.register'))
-
-        if User.query.filter_by(email=email).first():
-            flash('Email already registered')
+        # One generic message so we don't reveal which accounts already exist.
+        if User.query.filter((User.username == username) | (User.email == email)).first():
+            flash('Username or email already in use')
             return redirect(url_for('main.register'))
 
         user = User(username=username, email=email, password_hash=generate_password_hash(password))
@@ -280,12 +303,14 @@ def register():
 
         progression_data = current_app.config['PROGRESSION_DATA']
         for category in progression_data:
-            db.session.add(UserProgression(
-                user_id=user.id,
-                exercise_category=category,
-                current_progression=1,
-                current_reps=5,
-            ))
+            db.session.add(
+                UserProgression(
+                    user_id=user.id,
+                    exercise_category=category,
+                    current_progression=1,
+                    current_reps=5,
+                )
+            )
         db.session.commit()
 
         flash('Registration successful! Please log in.')
@@ -340,8 +365,7 @@ def _bwf_exercise_view(section, index):
     user_progression = None
     if current_user.is_authenticated and progression_data:
         user_progression = UserProgression.query.filter_by(
-            user_id=current_user.id,
-            exercise_category=exercise_obj['name']
+            user_id=current_user.id, exercise_category=exercise_obj['name']
         ).first()
 
     return render_template(
@@ -390,17 +414,19 @@ def add_exercise():
     if equipment not in ALLOWED_EQUIPMENT:
         equipment = 'machine'
 
-    db.session.add(CustomExercise(
-        user_id=current_user.id,
-        routine_type=routine_key,
-        section=section,
-        name=name,
-        sets=sets,
-        reps=reps[:20],
-        weighted=(equipment != 'bodyweight'),
-        equipment=equipment,
-        description=request.form.get('description', '').strip(),
-    ))
+    db.session.add(
+        CustomExercise(
+            user_id=current_user.id,
+            routine_type=routine_key,
+            section=section,
+            name=name,
+            sets=sets,
+            reps=reps[:20],
+            weighted=(equipment != 'bodyweight'),
+            equipment=equipment,
+            description=request.form.get('description', '').strip(),
+        )
+    )
     db.session.commit()
     flash(f'Added "{name}" to {section}.')
     return redirect(url_for('main.home', routine=routine_key))
@@ -415,19 +441,22 @@ def remove_exercise():
         return redirect(url_for('main.home', routine=routine_key))
 
     custom = CustomExercise.query.filter_by(
-        user_id=current_user.id, routine_type=routine_key, name=name).first()
+        user_id=current_user.id, routine_type=routine_key, name=name
+    ).first()
     if custom:
         db.session.delete(custom)
     else:
         already_hidden = HiddenExercise.query.filter_by(
-            user_id=current_user.id, routine_type=routine_key,
-            exercise_name=name).first()
+            user_id=current_user.id, routine_type=routine_key, exercise_name=name
+        ).first()
         if not already_hidden:
-            db.session.add(HiddenExercise(
-                user_id=current_user.id,
-                routine_type=routine_key,
-                exercise_name=name,
-            ))
+            db.session.add(
+                HiddenExercise(
+                    user_id=current_user.id,
+                    routine_type=routine_key,
+                    exercise_name=name,
+                )
+            )
     db.session.commit()
     flash(f'Removed "{name}" from your routine.')
     return redirect(url_for('main.home', routine=routine_key))
@@ -437,8 +466,7 @@ def remove_exercise():
 @login_required
 def restore_exercises():
     routine_key = _form_routine_key()
-    HiddenExercise.query.filter_by(
-        user_id=current_user.id, routine_type=routine_key).delete()
+    HiddenExercise.query.filter_by(user_id=current_user.id, routine_type=routine_key).delete()
     db.session.commit()
     flash('Removed exercises restored.')
     return redirect(url_for('main.home', routine=routine_key))
@@ -505,15 +533,17 @@ def log_exercise(exercise_name):
 
     if _is_ajax():
         get_flashed_messages()  # discard — flash queue unused for AJAX responses
-        return jsonify({
-            'status': 'ok' if result.get('ok') else 'error',
-            'message': result.get('message', ''),
-            'exercise_name': exercise_name,
-            'sets_completed': result.get('sets_completed', 0),
-            'rest_period': rest_period,
-            'advanced': result.get('advanced', False),
-            'new_progression': result.get('new_progression'),
-        })
+        return jsonify(
+            {
+                'status': 'ok' if result.get('ok') else 'error',
+                'message': result.get('message', ''),
+                'exercise_name': exercise_name,
+                'sets_completed': result.get('sets_completed', 0),
+                'rest_period': rest_period,
+                'advanced': result.get('advanced', False),
+                'new_progression': result.get('new_progression'),
+            }
+        )
 
     return redirect(url_for('main.exercise', section=section, index=index, routine=routine))
 
@@ -540,16 +570,18 @@ def _log_gym_exercise(exercise_name, workout_id):
     has_weights = any(w not in ('', '0') for w in weights)
     weight_unit = request.form.get('weight_unit', 'lbs')
 
-    db.session.add(ExerciseLog(
-        exercise_name=exercise_name,
-        sets_completed=len(reps),
-        reps_per_set=','.join(reps),
-        weight_per_set=','.join(weights) if has_weights else None,
-        weight_unit=weight_unit if has_weights else None,
-        progression_level=None,
-        notes=request.form.get('notes', ''),
-        workout_id=workout_id,
-    ))
+    db.session.add(
+        ExerciseLog(
+            exercise_name=exercise_name,
+            sets_completed=len(reps),
+            reps_per_set=','.join(reps),
+            weight_per_set=','.join(weights) if has_weights else None,
+            weight_unit=weight_unit if has_weights else None,
+            progression_level=None,
+            notes=request.form.get('notes', ''),
+            workout_id=workout_id,
+        )
+    )
     db.session.commit()
     flash('Exercise logged!')
     return {'ok': True, 'sets_completed': len(reps), 'message': 'Exercise logged!'}
@@ -564,14 +596,16 @@ def _log_bwf_exercise(exercise_name, workout_id):
         if reps_str:
             reps_list.append(reps_str)
 
-    db.session.add(ExerciseLog(
-        exercise_name=exercise_name,
-        sets_completed=len(reps_list),
-        reps_per_set=','.join(reps_list),
-        progression_level=progression_level,
-        notes=request.form.get('notes', ''),
-        workout_id=workout_id,
-    ))
+    db.session.add(
+        ExerciseLog(
+            exercise_name=exercise_name,
+            sets_completed=len(reps_list),
+            reps_per_set=','.join(reps_list),
+            progression_level=progression_level,
+            notes=request.form.get('notes', ''),
+            workout_id=workout_id,
+        )
+    )
 
     advanced, new_name = maybe_advance_progression(current_user, exercise_name, reps_list)
     db.session.commit()
@@ -593,8 +627,7 @@ def maybe_advance_progression(user, exercise_name, reps_list):
         return False, None
 
     user_progression = UserProgression.query.filter_by(
-        user_id=user.id,
-        exercise_category=exercise_name
+        user_id=user.id, exercise_category=exercise_name
     ).first()
     if not user_progression:
         return False, None
@@ -605,7 +638,7 @@ def maybe_advance_progression(user, exercise_name, reps_list):
     if user_progression.current_progression < max_level:
         user_progression.current_progression += 1
         user_progression.current_reps = 5
-        user_progression.last_updated = datetime.now(timezone.utc)
+        user_progression.last_updated = datetime.now(UTC)
         next_name = progression_data[user_progression.current_progression - 1]['name']
         flash(f'Congratulations! You advanced to: {next_name}')
         return True, next_name
@@ -624,8 +657,12 @@ def progress():
 def dashboard():
     user_progressions = UserProgression.query.filter_by(user_id=current_user.id).all()
     progression_data = current_app.config['PROGRESSION_DATA']
-    recent_workouts = (Workout.query.filter_by(user_id=current_user.id)
-                       .order_by(Workout.date.desc()).limit(10).all())
+    recent_workouts = (
+        Workout.query.filter_by(user_id=current_user.id)
+        .order_by(Workout.date.desc())
+        .limit(10)
+        .all()
+    )
 
     all_workouts = Workout.query.filter_by(user_id=current_user.id).all()
     total_workouts = len(all_workouts)
@@ -634,14 +671,8 @@ def dashboard():
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
 
-    workouts_this_week = sum(
-        1 for w in all_workouts
-        if w.date.date() >= week_start
-    )
-    workouts_this_month = sum(
-        1 for w in all_workouts
-        if w.date.date() >= month_start
-    )
+    workouts_this_week = sum(1 for w in all_workouts if w.date.date() >= week_start)
+    workouts_this_month = sum(1 for w in all_workouts if w.date.date() >= month_start)
 
     # Workouts per ISO week for the last 12 weeks
     twelve_weeks_ago = today - timedelta(weeks=12)
@@ -649,7 +680,7 @@ def dashboard():
     freq_by_week = {}
     for w in recent:
         iso_week = w.date.date().isocalendar()
-        key = f"{iso_week[0]}-W{iso_week[1]:02d}"
+        key = f'{iso_week[0]}-W{iso_week[1]:02d}'
         freq_by_week[key] = freq_by_week.get(key, 0) + 1
     # Build ordered list for last 12 weeks (fills zeros for empty weeks)
     freq_labels = []
@@ -657,8 +688,8 @@ def dashboard():
     for i in range(11, -1, -1):
         d = today - timedelta(weeks=i)
         iso = d.isocalendar()
-        key = f"{iso[0]}-W{iso[1]:02d}"
-        freq_labels.append(f"W{iso[1]}")
+        key = f'{iso[0]}-W{iso[1]:02d}'
+        freq_labels.append(f'W{iso[1]}')
         freq_values.append(freq_by_week.get(key, 0))
 
     # Routine breakdown
@@ -666,9 +697,11 @@ def dashboard():
     for w in all_workouts:
         routine_counts[w.routine_type] = routine_counts.get(w.routine_type, 0) + 1
 
-    ai_programs = (GeneratedProgram.query
-                   .filter_by(user_id=current_user.id, is_draft=False)
-                   .order_by(GeneratedProgram.created_at).all())
+    ai_programs = (
+        GeneratedProgram.query.filter_by(user_id=current_user.id, is_draft=False)
+        .order_by(GeneratedProgram.created_at)
+        .all()
+    )
 
     def _routine_label(rt):
         if rt == 'bwf':
@@ -762,14 +795,17 @@ def dashboard():
 @main.route('/schedule')
 @login_required
 def schedule():
-    ai_programs = (GeneratedProgram.query
-                   .filter_by(user_id=current_user.id, is_draft=False)
-                   .order_by(GeneratedProgram.created_at).all())
+    ai_programs = (
+        GeneratedProgram.query.filter_by(user_id=current_user.id, is_draft=False)
+        .order_by(GeneratedProgram.created_at)
+        .all()
+    )
 
-    rotation = (RotationEntry.query
-                .filter_by(user_id=current_user.id)
-                .order_by(RotationEntry.position)
-                .all())
+    rotation = (
+        RotationEntry.query.filter_by(user_id=current_user.id)
+        .order_by(RotationEntry.position)
+        .all()
+    )
 
     today = date.today()
     two_weeks = [today + timedelta(days=i) for i in range(14)]
@@ -785,13 +821,15 @@ def schedule():
     calendar_days = []
     for d in two_weeks:
         entry = scheduled.get(d)
-        calendar_days.append({
-            'date': d,
-            'date_str': d.strftime('%Y-%m-%d'),
-            'label': d.strftime('%a %-d'),
-            'routine_type': entry.routine_type if entry else None,
-            'schedule_id': entry.id if entry else None,
-        })
+        calendar_days.append(
+            {
+                'date': d,
+                'date_str': d.strftime('%Y-%m-%d'),
+                'label': d.strftime('%a %-d'),
+                'routine_type': entry.routine_type if entry else None,
+                'schedule_id': entry.id if entry else None,
+            }
+        )
 
     all_routines = [
         {'key': 'bwf', 'label': 'BWF'},
@@ -815,11 +853,13 @@ def save_rotation():
     valid = [rt for rt in routine_types if _valid_routine_key(rt)]
     RotationEntry.query.filter_by(user_id=current_user.id).delete()
     for i, rt in enumerate(valid):
-        db.session.add(RotationEntry(
-            user_id=current_user.id,
-            routine_type=rt,
-            position=i,
-        ))
+        db.session.add(
+            RotationEntry(
+                user_id=current_user.id,
+                routine_type=rt,
+                position=i,
+            )
+        )
     db.session.commit()
     return jsonify({'status': 'ok'})
 
@@ -838,7 +878,8 @@ def plan_workout():
         return jsonify({'status': 'error', 'message': 'Invalid routine'}), 400
 
     existing = WorkoutSchedule.query.filter_by(
-        user_id=current_user.id, scheduled_date=scheduled_date).first()
+        user_id=current_user.id, scheduled_date=scheduled_date
+    ).first()
     if existing:
         existing.routine_type = routine_type
         entry = existing
@@ -935,12 +976,12 @@ def generate():
     try:
         name, description, routine = ai_generator.generate_program(api_key, inputs)
     except ai_generator.GenerationError as exc:
+        current_app.logger.warning('Program generation failed: %s', exc)
         flash(str(exc))
         return redirect(url_for('main.generate'))
 
     # Abandoned drafts are dead weight — keep at most one per user
-    GeneratedProgram.query.filter_by(
-        user_id=current_user.id, is_draft=True).delete()
+    GeneratedProgram.query.filter_by(user_id=current_user.id, is_draft=True).delete()
     program = GeneratedProgram(
         user_id=current_user.id,
         name=name,
@@ -1002,9 +1043,10 @@ def retry_program(program_id):
 
     try:
         name, description, routine = ai_generator.generate_program(
-            api_key, program.inputs(),
-            previous_program=program.routine_data(), feedback=feedback)
+            api_key, program.inputs(), previous_program=program.routine_data(), feedback=feedback
+        )
     except ai_generator.GenerationError as exc:
+        current_app.logger.warning('Program regeneration failed: %s', exc)
         flash(str(exc))
         return redirect(url_for('main.preview_program', program_id=program.id))
 
@@ -1025,10 +1067,8 @@ def delete_program(program_id):
         return redirect(url_for('main.home'))
 
     routine_key = program.routine_key
-    CustomExercise.query.filter_by(
-        user_id=current_user.id, routine_type=routine_key).delete()
-    HiddenExercise.query.filter_by(
-        user_id=current_user.id, routine_type=routine_key).delete()
+    CustomExercise.query.filter_by(user_id=current_user.id, routine_type=routine_key).delete()
+    HiddenExercise.query.filter_by(user_id=current_user.id, routine_type=routine_key).delete()
     db.session.delete(program)
     db.session.commit()
     if session.get('current_routine_view') == routine_key:
@@ -1040,8 +1080,7 @@ def delete_program(program_id):
 @main.route('/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
-    record = UserApiKey.query.filter_by(
-        user_id=current_user.id, provider='anthropic').first()
+    record = UserApiKey.query.filter_by(user_id=current_user.id, provider='anthropic').first()
 
     if request.method == 'POST':
         if request.form.get('action') == 'clear':
@@ -1055,16 +1094,17 @@ def settings():
                 flash('Enter an API key to save.')
             else:
                 if record is None:
-                    record = UserApiKey(user_id=current_user.id,
-                                        provider='anthropic')
+                    record = UserApiKey(user_id=current_user.id, provider='anthropic')
                     db.session.add(record)
                 record.set_key(raw)
                 db.session.commit()
                 flash('API key saved.')
         return redirect(url_for('main.settings'))
 
+    key_hint = record.key_hint() if record else None
     return render_template(
         'settings.html',
-        key_hint=record.key_hint() if record else None,
+        key_hint=key_hint,
+        key_undecryptable=bool(record) and key_hint is None,
         server_key_available=bool(current_app.config.get('ANTHROPIC_API_KEY')),
     )

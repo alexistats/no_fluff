@@ -1,15 +1,17 @@
-from app import db, login_manager
-from flask import current_app
-from flask_login import UserMixin
-from datetime import datetime, timezone
-from cryptography.fernet import Fernet
 import base64
 import hashlib
 import json
+from datetime import UTC, datetime
+
+from cryptography.fernet import Fernet, InvalidToken
+from flask import current_app
+from flask_login import UserMixin
+
+from app import db, login_manager
 
 
 def utc_now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @login_manager.user_loader
@@ -22,16 +24,42 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(64), unique=True, index=True)
     email = db.Column(db.String(120), unique=True, index=True)
     password_hash = db.Column(db.String(256))
-    workouts = db.relationship('Workout', backref='user', lazy='dynamic')
-    progressions = db.relationship('UserProgression', backref='user', lazy='dynamic')
+    # Deleting a user cleans up everything owned by them (cascade is ORM-level;
+    # no ON DELETE in the schema, so it works the same on SQLite and Postgres).
+    workouts = db.relationship(
+        'Workout', backref='user', lazy='dynamic', cascade='all, delete-orphan'
+    )
+    progressions = db.relationship(
+        'UserProgression', backref='user', lazy='dynamic', cascade='all, delete-orphan'
+    )
+    custom_exercises = db.relationship(
+        'CustomExercise', backref='user', lazy='dynamic', cascade='all, delete-orphan'
+    )
+    hidden_exercises = db.relationship(
+        'HiddenExercise', backref='user', lazy='dynamic', cascade='all, delete-orphan'
+    )
+    api_key = db.relationship(
+        'UserApiKey', backref='user', uselist=False, cascade='all, delete-orphan'
+    )
+    generated_programs = db.relationship(
+        'GeneratedProgram', backref='user', lazy='dynamic', cascade='all, delete-orphan'
+    )
+    rotation_entries = db.relationship(
+        'RotationEntry', backref='user', lazy='dynamic', cascade='all, delete-orphan'
+    )
+    scheduled_workouts = db.relationship(
+        'WorkoutSchedule', backref='user', lazy='dynamic', cascade='all, delete-orphan'
+    )
 
 
 class Workout(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.DateTime, default=utc_now)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     routine_type = db.Column(db.String(20), default='bwf')
-    exercises = db.relationship('ExerciseLog', backref='workout', lazy='dynamic')
+    exercises = db.relationship(
+        'ExerciseLog', backref='workout', lazy='dynamic', cascade='all, delete-orphan'
+    )
 
     def formatted_date(self):
         return self.date.strftime('%Y-%m-%d %H:%M')
@@ -46,7 +74,7 @@ class ExerciseLog(db.Model):
     weight_unit = db.Column(db.String(5), nullable=True)  # 'lbs' or 'kg'
     progression_level = db.Column(db.Integer, nullable=True)
     notes = db.Column(db.Text)
-    workout_id = db.Column(db.Integer, db.ForeignKey('workout.id'))
+    workout_id = db.Column(db.Integer, db.ForeignKey('workout.id'), index=True)
 
     def get_reps_list(self):
         if not self.reps_per_set:
@@ -61,8 +89,9 @@ class ExerciseLog(db.Model):
 
 class CustomExercise(db.Model):
     """A user-added exercise overlaid on the built-in routine."""
+
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     routine_type = db.Column(db.String(20), default='gym')
     section = db.Column(db.String(50))
     name = db.Column(db.String(100))
@@ -86,20 +115,30 @@ class CustomExercise(db.Model):
 
 class HiddenExercise(db.Model):
     """A built-in exercise the user removed from their routine view."""
+
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     routine_type = db.Column(db.String(20), default='gym')
     exercise_name = db.Column(db.String(100))
 
 
 def _fernet():
-    """Symmetric cipher keyed off SECRET_KEY — no extra env var needed."""
+    """Symmetric cipher for stored user API keys.
+
+    Prefers an explicit FERNET_KEY so SECRET_KEY can be rotated without
+    bricking stored keys; falls back to deriving a key from SECRET_KEY for
+    backward compatibility with existing deployments.
+    """
+    configured = current_app.config.get('FERNET_KEY')
+    if configured:
+        return Fernet(configured)
     digest = hashlib.sha256(current_app.config['SECRET_KEY'].encode()).digest()
     return Fernet(base64.urlsafe_b64encode(digest))
 
 
 class UserApiKey(db.Model):
     """A user's own LLM API key, stored encrypted. Overrides the server key."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), unique=True)
     provider = db.Column(db.String(20), default='anthropic')
@@ -110,22 +149,33 @@ class UserApiKey(db.Model):
         self.encrypted_key = _fernet().encrypt(raw_key.encode()).decode()
 
     def get_key(self):
-        return _fernet().decrypt(self.encrypted_key.encode()).decode()
+        """Decrypt the stored key, or None if it can't be decrypted.
+
+        Returns None when the cipher key changed (e.g. SECRET_KEY was rotated
+        without a FERNET_KEY), so callers can prompt the user to re-enter it
+        instead of crashing.
+        """
+        try:
+            return _fernet().decrypt(self.encrypted_key.encode()).decode()
+        except InvalidToken:
+            return None
 
     def key_hint(self):
-        """Last 4 characters, for display without echoing the key."""
-        return self.get_key()[-4:]
+        """Last 4 characters, or None if the stored key can't be decrypted."""
+        key = self.get_key()
+        return key[-4:] if key else None
 
 
 class GeneratedProgram(db.Model):
     """An AI-generated workout program. Draft until accepted on preview."""
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     name = db.Column(db.String(100))
     goal = db.Column(db.String(200))
     description = db.Column(db.Text, default='')
     program_json = db.Column(db.Text)  # {"Section": [gym-schema exercise dicts]}
-    inputs_json = db.Column(db.Text)   # generation form inputs, kept for retries
+    inputs_json = db.Column(db.Text)  # generation form inputs, kept for retries
     is_draft = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=utc_now)
 
@@ -142,7 +192,7 @@ class GeneratedProgram(db.Model):
 
 class UserProgression(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     exercise_category = db.Column(db.String(100))  # e.g., "Pull-up", "Squat"
     current_progression = db.Column(db.Integer)  # Index of current progression
     current_reps = db.Column(db.Integer, default=5)  # Current target reps
@@ -151,9 +201,10 @@ class UserProgression(db.Model):
 
 class RotationEntry(db.Model):
     """One step in the user's preferred workout rotation sequence."""
+
     __tablename__ = 'rotation_entry'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     routine_type = db.Column(db.String(50), nullable=False)
     position = db.Column(db.Integer, nullable=False)
     label = db.Column(db.String(100))
@@ -161,6 +212,7 @@ class RotationEntry(db.Model):
 
 class WorkoutSchedule(db.Model):
     """A planned workout for a specific calendar date."""
+
     __tablename__ = 'workout_schedule'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)

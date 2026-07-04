@@ -23,6 +23,8 @@
             <input type="hidden" name="action" value="clear">
             <button type="submit" class="restore-btn">Remove my key</button>
         </form>
+        {% elif key_undecryptable %}
+        <p class="settings-key-status">Your saved key can't be decrypted — please re-enter it below.</p>
         {% endif %}
 
         <form method="POST" action="{{ url_for('main.settings') }}">

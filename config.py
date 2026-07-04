@@ -1,12 +1,32 @@
 import os
 import warnings
 
+
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY')
     if not SECRET_KEY:
+        # A managed platform (Render) or a non-SQLite DATABASE_URL means we're
+        # running for real — refuse to boot on the insecure development key.
+        _database_url = os.environ.get('DATABASE_URL', '')
+        _in_production = bool(os.environ.get('RENDER')) or (
+            bool(_database_url) and not _database_url.startswith('sqlite')
+        )
+        if _in_production:
+            raise RuntimeError(
+                'SECRET_KEY must be set in production. Refusing to start with an '
+                'insecure development key.'
+            )
         SECRET_KEY = 'dev-only-insecure-key'
-        warnings.warn('SECRET_KEY is not set — using an insecure development key. '
-                      'Set the SECRET_KEY environment variable in production.')
+        warnings.warn(
+            'SECRET_KEY is not set — using an insecure development key. '
+            'Set the SECRET_KEY environment variable in production.',
+            stacklevel=2,
+        )
+
+    # Optional explicit key for encrypting stored user API keys. When set, it
+    # decouples the cipher from SECRET_KEY so SECRET_KEY can be rotated without
+    # bricking stored keys. Falls back to a SECRET_KEY-derived key when unset.
+    FERNET_KEY = os.environ.get('FERNET_KEY')
 
     # Server-wide default key for AI program generation. Optional — users can
     # also store their own key in Settings, which takes precedence.
