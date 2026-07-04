@@ -9,10 +9,10 @@ from app.models import ExerciseLog, User, Workout
 from app.services import stats
 
 
-def _extract_js_json(html, var):
-    """Pull `const <var> = <json>;` out of the dashboard's inline script."""
-    match = re.search(rf'{var}\s*=\s*(.*?);', html, re.S)
-    assert match, f'{var} not found in page'
+def _dashboard_data(html):
+    """Parse the #dashboard-data JSON block the charts read from."""
+    match = re.search(r'id="dashboard-data"[^>]*>(.*?)</script>', html, re.S)
+    assert match, 'dashboard-data block not found'
     return json.loads(match.group(1))
 
 
@@ -49,15 +49,14 @@ def test_dashboard_aggregates(app, logged_in_client):
     assert '<span class="dash-stat-num">3</span>' in html
     assert html.count('<span class="dash-stat-num">2</span>') >= 2
 
-    assert _extract_js_json(html, 'routineData') == [
+    data = _dashboard_data(html)
+    assert data['routine_breakdown'] == [
         {'label': 'Gym', 'count': 2},
         {'label': 'BWF', 'count': 1},
     ]
-    assert _extract_js_json(html, 'exData') == [{'name': 'Bench Press', 'count': 1}]
-
-    trends = _extract_js_json(html, 'trends')
-    assert list(trends.keys()) == ['Bench Press']
-    assert trends['Bench Press'][0]['weight'] == 45.4  # 100 lbs -> kg
+    assert data['top_exercises'] == [{'name': 'Bench Press', 'count': 1}]
+    assert list(data['weight_trends'].keys()) == ['Bench Press']
+    assert data['weight_trends']['Bench Press'][0]['weight'] == 45.4  # 100 lbs -> kg
 
 
 def test_dashboard_empty_state(logged_in_client):

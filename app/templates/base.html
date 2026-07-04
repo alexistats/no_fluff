@@ -1,3 +1,4 @@
+{% from "_macros.html" import equipment_icon %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}NoFluff{% endblock %}</title>
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/logo.svg') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ static_url('img/logo.svg') }}">
     <script>
         // Apply the saved (or OS-preferred) theme before first paint to avoid a flash
         (function () {
@@ -16,7 +17,7 @@
             document.documentElement.setAttribute('data-theme', theme);
         })();
     </script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -24,7 +25,7 @@
         <div class="header-inner">
             <div class="header-top">
                 <a class="brand" href="{{ url_for('main.home') }}">
-                    <img class="brand-logo" src="{{ url_for('static', filename='img/logo.svg') }}" alt="">
+                    <img class="brand-logo" src="{{ static_url('img/logo.svg') }}" alt="">
                     <span class="brand-text">
                         <span class="brand-name">NoFluff</span>
                         <span class="tagline">The no fluff workout app</span>
@@ -81,7 +82,14 @@
         <p>&copy; 2026 NoFluff</p>
     </footer>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script type="application/json" id="eq-icons">
+{{ {
+    'barbell': equipment_icon('barbell')|trim,
+    'dumbbell': equipment_icon('dumbbell')|trim,
+    'machine': equipment_icon('machine')|trim,
+} | tojson }}
+    </script>
+    <script src="{{ static_url('js/main.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

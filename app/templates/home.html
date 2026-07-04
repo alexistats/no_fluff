@@ -94,7 +94,7 @@
             <li class="exercise-item">
                 <div class="exercise-card-header"
                      data-href="{{ url_for('main.exercise', section=section, index=ex_i, routine=routine_type) }}"
-                     {% if can_log %}data-card="{{ card_id }}"{% endif %}
+                     {% if can_log %}data-card="{{ card_id }}" aria-expanded="false" aria-controls="panel-{{ card_id }}"{% endif %}
                      role="button" tabindex="0">
                     <div class="exercise-card-main">
                         <h3>{{ exercise.name }}</h3>
@@ -127,11 +127,11 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="name" value="{{ exercise.name }}">
                         <input type="hidden" name="routine" value="{{ routine_type }}">
-                        <button type="submit" class="remove-exercise-btn" title="Remove {{ exercise.name }}">×</button>
+                        <button type="submit" class="remove-exercise-btn" aria-label="Remove {{ exercise.name }}" title="Remove {{ exercise.name }}">×</button>
                     </form>
                     {% endif %}
 
-                    <span class="expand-icon {% if not can_log %}nav-arrow{% endif %}">›</span>
+                    <span class="expand-icon {% if not can_log %}nav-arrow{% endif %}" aria-hidden="true">›</span>
                 </div>
 
                 {% if can_log %}
