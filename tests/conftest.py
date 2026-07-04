@@ -15,6 +15,8 @@ class TestConfig(Config):
 @pytest.fixture
 def app():
     app = create_app(TestConfig)
+    with app.app_context():
+        db.create_all()
     yield app
     with app.app_context():
         db.drop_all()

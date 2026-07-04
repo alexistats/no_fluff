@@ -74,6 +74,20 @@ ruff format --check .
 
 The suite covers progression advancement rules, gym set parsing, the full register → login → workout → log flow, and permission checks.
 
+## Database migrations
+
+Schema changes are managed with [Flask-Migrate](https://flask-migrate.readthedocs.io/) (Alembic). After changing a model:
+
+```bash
+export FLASK_APP="app:create_app"
+flask db migrate -m "describe the change"   # autogenerate a migration
+flask db upgrade                            # apply it locally
+```
+
+Review the generated file in `migrations/versions/` before committing it.
+
+On startup the app brings the database up to date automatically (equivalent to `flask db upgrade`), so deploys need no manual migration step. A database created before migrations existed (only the original `db.create_all()` schema) is stamped at the baseline revision on first boot and then upgraded. Set `AUTO_MIGRATE=0` to disable the startup migration and run `flask db upgrade` yourself.
+
 ## Deployment (Render + Neon)
 
 The app is set up for a free-tier deployment:
@@ -85,7 +99,7 @@ The app is set up for a free-tier deployment:
    - Python version: auto-detected from `.python-version` (don't set `PYTHON_VERSION` manually)
    - Environment variables: `DATABASE_URL` (Neon connection string) and `SECRET_KEY` (e.g., `python -c "import secrets; print(secrets.token_hex(32))"`)
 
-Tables are created automatically on first startup. Note that both free tiers sleep when idle — the first request after a quiet period takes ~30–60s.
+The schema is created and kept up to date automatically on startup (see [Database migrations](#database-migrations)). Note that both free tiers sleep when idle — the first request after a quiet period takes ~30–60s.
 
 ## Project structure
 
