@@ -18,13 +18,17 @@
 - **kg/lbs toggle** — switch units on the fly for machines labelled differently; preference is remembered, conversions apply to inputs and your last-session summary
 - **Plate calculator (barbell exercises)** — tap plates to load a visual barbell, see the total including the bar, and fill it into any set with one tap; plate denominations follow the kg/lbs toggle
 - **Rest timer** — built-in 60/90/120s countdown with vibration on completion
-- **Progress page** — current progression levels and recent workout history with per-set details
+- **Activity dashboard** — workout frequency, per-routine breakdown, most-trained exercises, and strength trends (charts), plus current progression levels and recent history
+- **Scheduling & rotation** — set a preferred routine rotation and plan workouts on a 2-week calendar; the home page surfaces today's planned or next-in-rotation workout
+- **Installable PWA** — add it to your phone's home screen; the app shell and assets are cached, in-progress log forms are saved locally, and there's a graceful offline page for flaky gym Wi-Fi
 - **Mobile-first UI** — responsive layout designed to be used at the gym from a phone
 - **Dark mode** — light/dark theme toggle in the header; defaults to your system preference and remembers your choice
 
 ## Tech stack
 
-Flask 3 · Flask-SQLAlchemy · Flask-Login · Flask-WTF (CSRF) · Jinja2 · vanilla JS · SQLite (dev) / PostgreSQL (production)
+Flask 3 · Flask-SQLAlchemy · Flask-Migrate (Alembic) · Flask-Login · Flask-WTF (CSRF) · Flask-Limiter · Jinja2 · vanilla JS + a service worker · Chart.js (vendored) · SQLite (dev) / PostgreSQL (production)
+
+Tooling: ruff (lint + format) and pytest, both enforced in GitHub Actions CI.
 
 ## Running locally
 
@@ -72,7 +76,7 @@ ruff check .
 ruff format --check .
 ```
 
-The suite covers progression advancement rules, gym set parsing, the full register → login → workout → log flow, and permission checks.
+The suite (~70 tests, ~88% coverage) covers progression rules, gym set parsing, the full register → login → workout → log flow, permission checks, the dashboard/schedule/rotation endpoints, secrets hardening, rate limiting, AI-generation error handling, and the PWA plumbing. A CI coverage floor (`--cov-fail-under`) guards against regressions.
 
 ## Database migrations
 
@@ -115,17 +119,27 @@ When you change cached assets and want clients to drop the old cache, bump `VERS
 
 ```
 app/
-  __init__.py          # App factory: DB, login, CSRF, JSON data loading
-  models.py            # User, Workout, ExerciseLog, UserProgression
-  routes.py            # Views + workout/progression logic
+  __init__.py          # App factory: DB, migrate, login, CSRF, rate limiter, logging, cache-busting
+  models.py            # User, Workout, ExerciseLog, progressions, custom/hidden exercises, AI programs, schedule…
+  routes.py            # Views + workout/progression logic, scheduling, AI generation, PWA endpoints
+  ai_generator.py      # Claude program generation (structured output + validation)
+  services/            # routines.py (labels/AI-program helpers), stats.py (dashboard SQL aggregation)
   static/
     css/style.css      # Responsive styles
-    js/main.js         # Rest timer, dynamic set inputs, kg/lbs converter
-  templates/           # Jinja2 templates
+    js/main.js         # Rest timer, set inputs, kg/lbs converter, drafts, service-worker registration
+    js/dashboard.js    # Dashboard charts (Chart.js)
+    js/schedule.js     # Rotation drag-sort + calendar planning
+    js/sw.js           # Service worker (served at /sw.js)
+    js/vendor/         # Vendored Chart.js
+    manifest.json      # PWA manifest
+    img/               # Logo + PWA icons
+  templates/           # Jinja2 templates (incl. _macros.html, offline.html)
+migrations/            # Flask-Migrate / Alembic migrations
 data/
   routine_data.json    # BWF routine structure
   progressions.json    # BWF progression levels per exercise
   gym_routine.json     # Gym routine structure (Push/Pull/Legs/Core)
+docs/IMPROVEMENTS.md   # Log of engineering-improvement work
 tests/                 # Pytest suite
 config.py              # Environment-driven configuration
 run.py                 # Dev entry point
