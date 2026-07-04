@@ -3,6 +3,8 @@ import logging
 import os
 
 from flask import Flask
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
@@ -15,6 +17,8 @@ login_manager = LoginManager()
 login_manager.login_view = 'main.login'
 csrf = CSRFProtect()
 migrate = Migrate()
+# In-memory storage is fine for a single gunicorn worker (see Procfile).
+limiter = Limiter(key_func=get_remote_address, storage_uri='memory://')
 
 # Revision of the baseline migration — the schema as it existed before the
 # migration framework was added. Databases created by the old db.create_all()
@@ -73,6 +77,7 @@ def create_app(config_class=Config):
     csrf.init_app(app)
     # render_as_batch lets SQLite (dev) handle ALTER-style migrations too.
     migrate.init_app(app, db, render_as_batch=True)
+    limiter.init_app(app)
 
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 

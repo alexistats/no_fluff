@@ -17,7 +17,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app import ai_generator, db
+from app import ai_generator, db, limiter
 from app.models import (
     CustomExercise,
     ExerciseLog,
@@ -29,9 +29,18 @@ from app.models import (
     UserProgression,
     Workout,
     WorkoutSchedule,
+    leading_int,
 )
 
 main = Blueprint('main', __name__)
+
+
+def _using_own_api_key():
+    """True when the user has their own decryptable key — exempt from the
+    shared-key generation limit, since they're spending their own credits."""
+    record = UserApiKey.query.filter_by(user_id=current_user.id, provider='anthropic').first()
+    return bool(record and record.get_key())
+
 
 MIN_PASSWORD_LENGTH = 8
 MAX_GYM_SETS = 10
@@ -259,6 +268,7 @@ def home():
 
 
 @main.route('/login', methods=['GET', 'POST'])
+@limiter.limit('5/minute', methods=['POST'])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
@@ -279,6 +289,7 @@ def login():
 
 
 @main.route('/register', methods=['GET', 'POST'])
+@limiter.limit('5/minute', methods=['POST'])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
@@ -344,13 +355,13 @@ def _gym_style_exercise_view(section, index, routine_data, routine_key):
         flash('Exercise not found.')
         return redirect(url_for('main.home', routine=routine_key))
     exercise_obj = exercises[index]
+    # Gym/AI routines have no progressions; exercise.html guards on these being
+    # absent (Jinja treats the missing vars as falsy).
     return render_template(
         'exercise.html',
         exercise=exercise_obj,
         section=section,
         routine=routine_key,
-        progression_data=None,
-        user_progression=None,
     )
 
 
@@ -623,7 +634,8 @@ def maybe_advance_progression(user, exercise_name, reps_list):
     """Advance level after 3+ sets of 8+ reps. Returns (advanced, new_name)."""
     if not exercise_name.endswith('Progression'):
         return False, None
-    if len(reps_list) < 3 or not all(int(r) >= 8 for r in reps_list):
+    reps = [leading_int(r) for r in reps_list]
+    if len(reps) < 3 or not all(r is not None and r >= 8 for r in reps):
         return False, None
 
     user_progression = UserProgression.query.filter_by(
@@ -646,12 +658,6 @@ def maybe_advance_progression(user, exercise_name, reps_list):
     return False, None
 
 
-@main.route('/progress')
-@login_required
-def progress():
-    return redirect(url_for('main.dashboard'))
-
-
 @main.route('/dashboard')
 @login_required
 def dashboard():
@@ -667,7 +673,10 @@ def dashboard():
     all_workouts = Workout.query.filter_by(user_id=current_user.id).all()
     total_workouts = len(all_workouts)
 
-    today = date.today()
+    # Workout.date is stored in UTC; compare against the UTC date so week/month
+    # counts don't shift by a day on a non-UTC server. (Per-user timezones are
+    # future work.)
+    today = datetime.now(UTC).date()
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
 
@@ -848,7 +857,8 @@ def schedule():
 @main.route('/schedule/rotation', methods=['POST'])
 @login_required
 def save_rotation():
-    routine_types = request.json.get('rotation', []) if request.is_json else []
+    data = request.get_json(silent=True) or {}
+    routine_types = data.get('rotation', [])
     # Validate each entry
     valid = [rt for rt in routine_types if _valid_routine_key(rt)]
     RotationEntry.query.filter_by(user_id=current_user.id).delete()
@@ -867,7 +877,7 @@ def save_rotation():
 @main.route('/schedule/plan', methods=['POST'])
 @login_required
 def plan_workout():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     date_str = data.get('date', '')
     routine_type = data.get('routine_type', '')
     try:
@@ -910,11 +920,11 @@ def view_workout(workout_id):
     workout = db.session.get(Workout, workout_id)
     if workout is None:
         flash('Workout not found.')
-        return redirect(url_for('main.progress'))
+        return redirect(url_for('main.dashboard'))
 
     if workout.user_id != current_user.id:
         flash('You do not have permission to view this workout.')
-        return redirect(url_for('main.progress'))
+        return redirect(url_for('main.dashboard'))
 
     exercise_logs = ExerciseLog.query.filter_by(workout_id=workout_id).all()
     progression_data = current_app.config['PROGRESSION_DATA']
@@ -953,6 +963,7 @@ def _generation_inputs_from_form(form):
 
 @main.route('/generate', methods=['GET', 'POST'])
 @login_required
+@limiter.limit('3/hour', methods=['POST'], exempt_when=_using_own_api_key)
 def generate():
     api_key = ai_generator.resolve_api_key(current_user)
 
@@ -1025,6 +1036,7 @@ def accept_program(program_id):
 
 @main.route('/generate/retry/<int:program_id>', methods=['POST'])
 @login_required
+@limiter.limit('3/hour', methods=['POST'], exempt_when=_using_own_api_key)
 def retry_program(program_id):
     program = _owned_program_or_none(program_id)
     if program is None:

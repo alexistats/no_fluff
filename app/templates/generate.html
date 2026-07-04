@@ -27,8 +27,7 @@
             <div class="equipment-checks">
                 {% for choice in equipment_choices %}
                 <label class="equipment-check">
-                    <input type="checkbox" name="equipment" value="{{ choice }}"
-                           {% if choice == 'bodyweight only' %}{% endif %}>
+                    <input type="checkbox" name="equipment" value="{{ choice }}">
                     {{ choice }}
                 </label>
                 {% endfor %}

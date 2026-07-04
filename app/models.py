@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -8,6 +9,18 @@ from flask import current_app
 from flask_login import UserMixin
 
 from app import db, login_manager
+
+_LEADING_INT = re.compile(r'-?\d+')
+
+
+def leading_int(token):
+    """First integer in a token ('30s' -> 30, '8' -> 8), or None if none.
+
+    Reps are usually plain integers, but AI/BWF entries can carry timed holds
+    like '30s'; parsing tolerantly keeps those from crashing reads.
+    """
+    match = _LEADING_INT.search(str(token))
+    return int(match.group()) if match else None
 
 
 def utc_now():
@@ -79,7 +92,8 @@ class ExerciseLog(db.Model):
     def get_reps_list(self):
         if not self.reps_per_set:
             return []
-        return [int(r) for r in self.reps_per_set.split(',') if r]
+        values = (leading_int(t) for t in self.reps_per_set.split(','))
+        return [v for v in values if v is not None]
 
     def get_weights_list(self):
         if not self.weight_per_set:

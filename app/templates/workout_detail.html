@@ -2,7 +2,7 @@
 {% block title %}Workout Details{% endblock %}
 {% block content %}
 <div class="workout-detail-container">
-    <a href="{{ url_for('main.progress') }}" class="back-button">&larr; Back to Progress</a>
+    <a href="{{ url_for('main.dashboard') }}" class="back-button">&larr; Back to Dashboard</a>
 
     <h2>Workout on {{ workout.formatted_date() }}</h2>
     {% if workout.routine_type == 'gym' %}
