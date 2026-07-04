@@ -13,4 +13,5 @@ quote-style = "single"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "--cov=app --cov-report=term-missing"
