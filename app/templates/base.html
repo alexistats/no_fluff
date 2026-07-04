@@ -7,6 +7,16 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}NoFluff{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="{{ static_url('img/logo.svg') }}">
+
+    <!-- PWA -->
+    <link rel="manifest" href="{{ static_url('manifest.json') }}">
+    <meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0e131b" media="(prefers-color-scheme: dark)">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="NoFluff">
+    <link rel="apple-touch-icon" href="{{ static_url('img/icon-192.png') }}">
     <script>
         // Apply the saved (or OS-preferred) theme before first paint to avoid a flash
         (function () {

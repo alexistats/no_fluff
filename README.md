@@ -101,6 +101,16 @@ The app is set up for a free-tier deployment:
 
 The schema is created and kept up to date automatically on startup (see [Database migrations](#database-migrations)). Note that both free tiers sleep when idle — the first request after a quiet period takes ~30–60s.
 
+## Progressive Web App
+
+NoFluff is installable to a phone home screen (`static/manifest.json` + icons) and stays usable on flaky connections via a service worker (`static/js/sw.js`, served at `/sw.js` for root scope):
+
+- **Static assets** are cache-first — combined with the `?v=<hash>` cache-busting, updated files are refetched automatically.
+- **Page navigations** are network-first and fall back to a cached `/offline` page when there's no connection. Nothing authenticated is cached.
+- **Log forms** persist to `localStorage` as you type, so a dropped connection or reload doesn't lose an in-progress set (cleared once the set is logged).
+
+When you change cached assets and want clients to drop the old cache, bump `VERSION` in `static/js/sw.js` (e.g. `'v1'` → `'v2'`); the new worker deletes older caches on activation.
+
 ## Project structure
 
 ```
