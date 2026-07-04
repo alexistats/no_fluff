@@ -130,6 +130,23 @@ def describe_inputs(inputs):
     return '\n'.join(lines)
 
 
+def _get_completion(client, messages):
+    """One Claude call. Factored out so tests can stub the transport."""
+    return client.messages.create(
+        model=MODEL,
+        max_tokens=16000,
+        thinking={'type': 'adaptive'},
+        system=SYSTEM_PROMPT,
+        messages=messages,
+        output_config={
+            # medium effort keeps generation fast enough for a synchronous
+            # web request without hurting program quality
+            'effort': 'medium',
+            'format': {'type': 'json_schema', 'schema': PROGRAM_SCHEMA},
+        },
+    )
+
+
 def generate_program(api_key, inputs, previous_program=None, feedback=None):
     """Call Claude and return a validated (name, description, routine) tuple.
 
@@ -153,19 +170,7 @@ def generate_program(api_key, inputs, previous_program=None, feedback=None):
     last_error = None
     for _ in range(2):  # one automatic retry on invalid output
         try:
-            response = client.messages.create(
-                model=MODEL,
-                max_tokens=16000,
-                thinking={'type': 'adaptive'},
-                system=SYSTEM_PROMPT,
-                messages=messages,
-                output_config={
-                    # medium effort keeps generation fast enough for a
-                    # synchronous web request without hurting program quality
-                    'effort': 'medium',
-                    'format': {'type': 'json_schema', 'schema': PROGRAM_SCHEMA},
-                },
-            )
+            message = _get_completion(client, messages)
         except anthropic.APIError as exc:
             current_app.logger.exception('Claude API error during program generation')
             for exc_type, hint in GENERATION_ERROR_HINTS.items():
@@ -173,12 +178,34 @@ def generate_program(api_key, inputs, previous_program=None, feedback=None):
                     raise GenerationError(hint) from exc
             raise GenerationError('The Claude API returned an error. Try again shortly.') from exc
 
-        text = next((b.text for b in response.content if b.type == 'text'), '')
+        if message.stop_reason == 'max_tokens':
+            raise GenerationError(
+                'The program was too long to finish. Try fewer training days or a '
+                'shorter session length.'
+            )
+        if message.stop_reason == 'refusal':
+            current_app.logger.warning('Claude refused the generation request')
+            raise GenerationError(
+                'The coach declined to answer that request. Try rephrasing your goal.'
+            )
+
+        text = next((b.text for b in message.content if b.type == 'text'), '')
         try:
             data = json.loads(text)
             return validate_program(data)
         except (ValueError, KeyError, TypeError) as exc:
             last_error = exc
+            if text:
+                # Tell the model its previous output was rejected so the retry
+                # isn't an identical request.
+                messages = messages + [
+                    {'role': 'assistant', 'content': text},
+                    {
+                        'role': 'user',
+                        'content': f'That response was not valid for the required schema ({exc}). '
+                        'Return only a corrected JSON program.',
+                    },
+                ]
 
     current_app.logger.error('Claude returned an invalid program twice: %s', last_error)
     raise GenerationError(

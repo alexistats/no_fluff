@@ -9,6 +9,7 @@ class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     TESTING = True
     WTF_CSRF_ENABLED = False
+    RATELIMIT_ENABLED = False  # the rate-limit test opts in with its own config
     ANTHROPIC_API_KEY = None  # tests opt in explicitly; never inherit the env
 
 

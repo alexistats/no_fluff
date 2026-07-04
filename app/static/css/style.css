@@ -2233,3 +2233,24 @@ body.timer-visible main {
     .cal-day-label { font-size: 0.6rem; }
     .cal-routine-badge { font-size: 0.55rem; padding: 0.1rem 0.2rem; }
 }
+
+/* ── Toast (transient error messages) ─────────────────────────── */
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.5rem;
+    transform: translateX(-50%);
+    max-width: 90%;
+    padding: 0.7rem 1.1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    z-index: 1000;
+    animation: toast-in 0.15s ease-out;
+}
+.toast-error { background: #c0392b; }
+@keyframes toast-in {
+    from { opacity: 0; transform: translate(-50%, 8px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+}

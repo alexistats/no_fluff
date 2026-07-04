@@ -1,8 +1,11 @@
+import hashlib
 import json
 import logging
 import os
 
-from flask import Flask
+from flask import Flask, url_for
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
@@ -15,11 +18,49 @@ login_manager = LoginManager()
 login_manager.login_view = 'main.login'
 csrf = CSRFProtect()
 migrate = Migrate()
+# In-memory storage is fine for a single gunicorn worker (see Procfile).
+limiter = Limiter(key_func=get_remote_address, storage_uri='memory://')
 
 # Revision of the baseline migration — the schema as it existed before the
 # migration framework was added. Databases created by the old db.create_all()
 # are stamped here on first boot, then upgraded to head.
 BASELINE_REVISION = '0001_baseline'
+
+
+_static_hashes = {}
+
+
+def _static_version(app, filename):
+    """Short content hash of a static file, cached by mtime, for cache-busting."""
+    path = os.path.join(app.static_folder, filename)
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    cached = _static_hashes.get(filename)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    with open(path, 'rb') as f:
+        digest = hashlib.md5(f.read()).hexdigest()[:8]  # noqa: S324 (cache key, not security)
+    _static_hashes[filename] = (mtime, digest)
+    return digest
+
+
+def _register_static_url(app):
+    """Expose static_url(filename) -> '/static/<file>?v=<hash>' to templates.
+
+    The version query string changes when the file changes, so browsers (and
+    the Phase 6 service worker) refetch updated assets instead of serving stale.
+    """
+
+    @app.context_processor
+    def _static_url_processor():
+        def static_url(filename):
+            url = url_for('static', filename=filename)
+            version = _static_version(app, filename)
+            return f'{url}?v={version}' if version else url
+
+        return {'static_url': static_url}
 
 
 def _configure_logging(app):
@@ -73,6 +114,8 @@ def create_app(config_class=Config):
     csrf.init_app(app)
     # render_as_batch lets SQLite (dev) handle ALTER-style migrations too.
     migrate.init_app(app, db, render_as_batch=True)
+    limiter.init_app(app)
+    _register_static_url(app)
 
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 

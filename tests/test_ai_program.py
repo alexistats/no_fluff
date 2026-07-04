@@ -349,3 +349,93 @@ def test_user_key_overrides_server_key(app, logged_in_client):
 
         user = User.query.filter_by(username='testuser').first()
         assert ai_generator.resolve_api_key(user) == 'user-key'
+
+
+# ── generate_program transport handling (stubs _get_completion) ──────
+
+
+class _FakeBlock:
+    type = 'text'
+
+    def __init__(self, text):
+        self.text = text
+
+
+class _FakeMessage:
+    def __init__(self, stop_reason, text=''):
+        self.stop_reason = stop_reason
+        self.content = [_FakeBlock(text)] if text else []
+
+
+_INPUTS = {
+    'goal': 'strength',
+    'equipment': ['barbell'],
+    'days_per_week': 3,
+    'session_length': 60,
+    'experience': 'beginner',
+    'notes': '',
+}
+
+
+def test_generate_program_reports_truncation(app, monkeypatch):
+    monkeypatch.setattr(
+        ai_generator, '_get_completion', lambda client, messages: _FakeMessage('max_tokens', '{}')
+    )
+    with app.app_context(), pytest.raises(ai_generator.GenerationError, match='too long'):
+        ai_generator.generate_program('sk-test', _INPUTS)
+
+
+def test_generate_program_reports_refusal(app, monkeypatch):
+    monkeypatch.setattr(
+        ai_generator, '_get_completion', lambda client, messages: _FakeMessage('refusal')
+    )
+    with app.app_context(), pytest.raises(ai_generator.GenerationError, match='declined'):
+        ai_generator.generate_program('sk-test', _INPUTS)
+
+
+def test_generate_program_retries_with_correction(app, monkeypatch):
+    calls = []
+
+    def fake(client, messages):
+        calls.append([m['role'] for m in messages])
+        return _FakeMessage('end_turn', 'not valid json')
+
+    monkeypatch.setattr(ai_generator, '_get_completion', fake)
+    with app.app_context(), pytest.raises(ai_generator.GenerationError, match='invalid program'):
+        ai_generator.generate_program('sk-test', _INPUTS)
+
+    assert len(calls) == 2
+    # The retry feeds back the rejected answer plus a correction turn.
+    assert calls[0] == ['user']
+    assert calls[1] == ['user', 'assistant', 'user']
+
+
+def test_generate_program_returns_validated_tuple(app, monkeypatch):
+    valid = json.dumps(
+        {
+            'program_name': 'Test Plan',
+            'description': 'A plan.',
+            'sections': [
+                {
+                    'name': 'Day 1',
+                    'exercises': [
+                        {
+                            'name': 'Squat',
+                            'sets': '3',
+                            'reps': '5',
+                            'weighted': True,
+                            'equipment': 'barbell',
+                            'description': 'Keep a flat back.',
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    monkeypatch.setattr(
+        ai_generator, '_get_completion', lambda c, m: _FakeMessage('end_turn', valid)
+    )
+    with app.app_context():
+        name, description, routine = ai_generator.generate_program('sk-test', _INPUTS)
+    assert name == 'Test Plan'
+    assert 'Day 1' in routine

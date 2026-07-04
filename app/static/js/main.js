@@ -19,12 +19,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const DB_LBS = [5, 7.5, 10, 12.5, 15, 17.5, 20, 22.5, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80];
     const DB_KG  = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 35, 37.5, 40];
     const PLATE_COLORS = ['#c0392b', '#2962a8', '#f1c40f', '#27ae60', '#7f8c8d', '#bdc3c7'];
-    // Mirrors the Jinja equipment_icon macro in _macros.html
-    const EQ_ICONS = {
-        barbell: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="1" y="11" width="22" height="2" rx="1"/><rect x="4.5" y="7.5" width="2.4" height="9" rx="1"/><rect x="7.6" y="5.5" width="2.4" height="13" rx="1"/><rect x="17.1" y="7.5" width="2.4" height="9" rx="1"/><rect x="14" y="5.5" width="2.4" height="13" rx="1"/></svg>',
-        dumbbell: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="8" y="11" width="8" height="2" rx="1"/><rect x="4" y="7" width="3" height="10" rx="1.2"/><rect x="17" y="7" width="3" height="10" rx="1.2"/><rect x="1.5" y="9" width="2" height="6" rx="1"/><rect x="20.5" y="9" width="2" height="6" rx="1"/></svg>',
-        machine: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="5" width="12" height="3.2" rx="1"/><rect x="6" y="9.4" width="12" height="3.2" rx="1"/><rect x="6" y="13.8" width="12" height="3.2" rx="1"/><rect x="6" y="18.2" width="12" height="3.2" rx="1"/><rect x="11" y="1" width="2" height="5" rx="1"/></svg>',
-    };
+    // Equipment icons come from the Jinja equipment_icon macro (single source),
+    // emitted as a JSON block in base.html.
+    const eqIconsEl = document.getElementById('eq-icons');
+    const EQ_ICONS = eqIconsEl ? JSON.parse(eqIconsEl.textContent) : {};
 
     // ── Theme toggle ───────────────────────────────────────────────
     // The current theme is applied to <html> before first paint (see base.html)
@@ -90,6 +88,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function setExpandIcon(cardId, open) {
         const h = document.querySelector('.exercise-card-header[data-card="' + cardId + '"]');
         if (!h) return;
+        h.setAttribute('aria-expanded', open ? 'true' : 'false');
         const icon = h.querySelector('.expand-icon');
         if (icon) icon.classList.toggle('open', open);
     }
@@ -154,9 +153,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!form.classList.contains('exercise-log-form')) return;
         e.preventDefault();
         const btn = form.querySelector('[type="submit"]');
-        if (btn) btn.disabled = true;
+        let btnLabel = '';
+        if (btn) {
+            btn.disabled = true;
+            btnLabel = btn.textContent;
+            btn.textContent = 'Logging…';
+        }
         const errDiv = form.querySelector('.form-error');
         if (errDiv) errDiv.textContent = '';
+
+        function restoreBtn() {
+            if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
+        }
 
         fetch(form.action, {
             method: 'POST',
@@ -165,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function () {
         })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                if (btn) btn.disabled = false;
+                restoreBtn();
                 if (data.status === 'ok') {
                     markCardDone(form.dataset.cardId, data.sets_completed);
                     collapseCard(form.dataset.cardId);
@@ -175,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (errDiv) errDiv.textContent = data.message || 'Error logging exercise.';
                 }
             })
-            .catch(function () { if (btn) btn.disabled = false; form.submit(); });
+            .catch(function () { restoreBtn(); form.submit(); });
     });
 
     function markCardDone(cardId, n) {

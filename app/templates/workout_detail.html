@@ -2,7 +2,7 @@
 {% block title %}Workout Details{% endblock %}
 {% block content %}
 <div class="workout-detail-container">
-    <a href="{{ url_for('main.progress') }}" class="back-button">&larr; Back to Progress</a>
+    <a href="{{ url_for('main.dashboard') }}" class="back-button">&larr; Back to Dashboard</a>
 
     <h2>Workout on {{ workout.formatted_date() }}</h2>
     {% if workout.routine_type == 'gym' %}
@@ -16,12 +16,8 @@
         <div class="exercise-log-card">
             <h3>{{ log.exercise_name }}</h3>
 
-            {% if log.exercise_name.endswith('Progression') and progression_data.get(log.exercise_name) %}
-                {% set prog_data = progression_data[log.exercise_name] %}
-                {% set prog_exercise = prog_data|selectattr('level', 'eq', log.progression_level)|first %}
-                {% if prog_exercise %}
-                <p class="progression-name">{{ prog_exercise.name }}</p>
-                {% endif %}
+            {% if progression_names.get(log.id) %}
+            <p class="progression-name">{{ progression_names[log.id] }}</p>
             {% endif %}
 
             {% if log.weight_per_set %}
