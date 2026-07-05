@@ -1,5 +1,9 @@
 # NoFluff Improvement Plan
 
+> **✅ Completed & archived (July 2026).** All six phases shipped and merged to `main`
+> — the record is in [`IMPROVEMENTS.md`](IMPROVEMENTS.md). Kept for historical
+> reference; current work is planned in [`FEATURE_PLAN.md`](../FEATURE_PLAN.md).
+
 A phased roadmap to improve NoFluff's engineering health, test coverage, code quality, and
 user experience. Written to be executed by future coding sessions (e.g. Claude Opus 4.8),
 one phase per session.

@@ -1,8 +1,8 @@
 # Improvements log
 
 A record of the engineering-improvement work carried out against
-[`IMPROVEMENT_PLAN.md`](../IMPROVEMENT_PLAN.md). All six phases are complete and
-merged to `main`.
+[`IMPROVEMENT_PLAN.md`](IMPROVEMENT_PLAN.md) (now archived here in `docs/`). All six
+phases are complete and merged to `main`.
 
 **Quality bar throughout:** every phase shipped CI-green (ruff + pytest), the
 suite grew to **70 tests at ~88% coverage**, and the frontend/PWA phases were

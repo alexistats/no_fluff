@@ -2,8 +2,9 @@
 
 A phased plan implementing the owner's feature requests, written to be executed by
 future coding sessions (Claude Opus 4.8 on max effort), **one phase per session**.
-It follows the same conventions as [`IMPROVEMENT_PLAN.md`](IMPROVEMENT_PLAN.md)
-(now complete — see [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md)).
+It follows the same conventions as the engineering improvement plan
+([`docs/IMPROVEMENT_PLAN.md`](docs/IMPROVEMENT_PLAN.md), completed and archived — see
+[`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md)).
 
 ## The requests → phases
 
@@ -149,9 +150,14 @@ contains only dates and routine labels. Hand-assemble the ICS (CRLF line endings
 escaped text, stable `UID`s like `nofluff-sched-<id>@nofluff`) — no dependency.
 **Honest caveats to put in the UI hint and PR:** Google Calendar refreshes subscribed
 URLs only every ~12–24 h and ignores `VALARM` on subscribed feeds, so the feed is for
-*seeing* workouts in any calendar app (including whatever app Melissa uses, if it can
-subscribe to a calendar URL — most can); *reliable reminders* are the email path.
-Apple Calendar honors alarms and refresh intervals better.
+*seeing* workouts in a calendar app; *reliable reminders* are the email path. Apple
+Calendar honors alarms and refresh intervals better. **Cozi** (the family's shared
+calendar) subscribes to ICS URLs natively — *Settings → Connected Calendars → Add a
+calendar from a URL* — and refreshes roughly hourly, so this one feed covers both
+Google Calendar and Cozi with no extra work. One wrinkle for both fetchers: the Render
+free dyno sleeps, and a cold start (30–60 s) can make a fetch attempt time out; that's
+tolerable (the fetcher retries on its next cycle) and the hourly reminder cron (D7)
+doubles as a keep-warm ping.
 
 ### D7 — Email reminders: daily, opt-in, driven by an external free cron hitting a token-guarded endpoint
 
@@ -433,15 +439,16 @@ tests); user's own key bypasses the lock entirely.
       on Render. Also set `APP_BASE_URL` (e.g. `https://<app>.onrender.com`).
 - [ ] **Phase 4**: set `CRON_SECRET` on Render; add repo **secret** `CRON_SECRET`
       (same value) and repo **variable** `APP_URL`; enable the workflow.
-- [ ] **Phase 4**: tell us which app Melissa uses (see Open questions).
+- [ ] **Phase 4**: subscribe to the feed — Google Calendar: *Other calendars → From
+      URL*; Cozi: *Settings → Connected Calendars → Add a calendar from a URL*
+      (share the same feed link with Melissa's Cozi).
 - [ ] **Phase 6**: set `SHARED_KEY_ACCESS_CODE` on Render; share the code.
 
 ## Open questions (non-blocking — defaults are chosen)
 
-1. **"The app Melissa has"** — unknown. Default assumption: any calendar app that can
-   subscribe to a URL (Google/Apple/Outlook and most others) is covered by the Phase 4
-   ICS feed. If it's a *fitness* app with its own sync API, that's a separate
-   evaluation — name the app in a comment on the Phase 4 PR.
+1. ~~"The app Melissa has"~~ — **answered: Cozi.** Cozi subscribes to internet
+   calendars by ICS URL and refreshes about hourly, so the Phase 4 feed covers it
+   directly (see D6). Nothing extra to build, nothing to drop.
 2. **Email provider** — plan assumes Brevo; any SMTP credential works without code
    changes.
 3. **Repo visibility** — if `alexistats/no_fluff` is private, GitHub Actions cron
