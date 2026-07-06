@@ -14,6 +14,7 @@
 - **Exercise notes** — optional note on any log form ("felt heavy", "used the thick bar"); notes show up in your workout history and as a 📝 hint next to the last-session preview
 - **Routine editing (Gym)** — add your own exercises (name, sets, reps, equipment) or remove built-in ones, right from the home page; removals are restorable
 - **Routine visibility** — hide built-in routines you don't use (Settings); they disappear from the home tabs, schedule pickers, and dashboard, while your history is kept and hidden routines stay reachable by direct link
+- **Password reset** — "Forgot password?" emails a single-use reset link that expires in an hour (works with any SMTP relay; without one configured, links go to the server log for local dev)
 - **Flexible sets** — add or remove sets on any logging form (1–10), for light days and crazy days alike
 - **Progression system (BWF)** — hit 3 sets of 8+ reps and the app advances you to the next exercise progression automatically
 - **Weight tracking (Gym)** — log weight × reps per set; your last session's numbers are pre-filled the next time
@@ -60,6 +61,8 @@ The Python version is pinned in `.python-version` (3.13) — pyenv/uv pick it up
 | `SECRET_KEY` | Flask session/CSRF signing key — **required in production** (the app refuses to start without it when `RENDER` or a non-SQLite `DATABASE_URL` is set) | insecure dev key (warns, local only) |
 | `FERNET_KEY` | Optional key (a `Fernet.generate_key()` value) for encrypting stored user API keys. When unset, one is derived from `SECRET_KEY`. Set it to decouple the two — see the note below. | derived from `SECRET_KEY` |
 | `ANTHROPIC_API_KEY` | Shared Claude API key for the AI program generator — optional; users can also save their own key in Settings (stored encrypted, takes precedence) | unset (feature prompts for a user key) |
+| `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | SMTP relay for outbound email (password resets). Any relay works — e.g. [Brevo](https://www.brevo.com)'s free tier or a Gmail app password. With `MAIL_SERVER` unset, emails are logged instead of sent (fine for local dev) | unset (console backend) |
+| `APP_BASE_URL` | Absolute base URL used for links in emails (e.g. `https://your-app.onrender.com`). Set it in production so emailed links can't be steered by a spoofed Host header | request host |
 | `LOG_LEVEL` | Log level for the app logger (`DEBUG`, `INFO`, `WARNING`, …) | `INFO` |
 
 > **Rotating `SECRET_KEY`:** stored user API keys are encrypted with a key derived from `SECRET_KEY` by default, so rotating `SECRET_KEY` makes them undecryptable (the Settings page then prompts the user to re-enter their key rather than erroring). To rotate `SECRET_KEY` while preserving stored keys, first set `FERNET_KEY` to the currently derived value: `python -c "import base64,hashlib,os; print(base64.urlsafe_b64encode(hashlib.sha256(os.environ['SECRET_KEY'].encode()).digest()).decode())"`.

@@ -20,6 +20,13 @@ phases are complete and merged to `main`.
   their history and labels. The dashboard's "BWF Progressions" section now renders
   only when BWF is visible **and** actually used (a BWF workout or an advancement) —
   registration-seeded progressions alone no longer surface it.
+- **Phase 3 — Email foundation + forgot password**: `app/services/email.py` (stdlib
+  SMTP with STARTTLS, console-log backend when `MAIL_SERVER` is unset — no new
+  dependencies) and `app/services/reset_tokens.py` (itsdangerous timed tokens salted
+  with a fragment of the password hash, so they're single-use and die on password
+  change; 1-hour expiry). `/forgot_password` (rate-limited 3/hour, uniform response —
+  no account enumeration) and `/reset_password/<token>`; emailed links are built from
+  `APP_BASE_URL` when configured to keep Host-header spoofing out of reset emails.
 
 **Quality bar throughout:** every phase shipped CI-green (ruff + pytest), the
 suite grew to **70 tests at ~88% coverage**, and the frontend/PWA phases were
