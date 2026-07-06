@@ -115,10 +115,11 @@
                         {% if pl %}
                         <div class="exercise-progression-hint">
                             {{ pl[up.current_progression - 1].name }}
+                            {%- if last_log and last_log.notes %} <span class="note-indicator" title="{{ last_log.notes }}">📝</span>{% endif %}
                         </div>
                         {% endif %}
                         {% elif last_log and last_log.reps_per_set %}
-                        <div class="exercise-last-reps">{{ last_log.reps_per_set }} reps</div>
+                        <div class="exercise-last-reps">{{ last_log.reps_per_set }} reps{% if last_log.notes %} <span class="note-indicator" title="{{ last_log.notes }}">📝</span>{% endif %}</div>
                         {% endif %}
                     </div>
 
@@ -158,6 +159,9 @@
                             {{ last_reps_list[r_i] }} reps
                         </span>
                         {% endfor %}
+                        {% if last_log.notes %}
+                        <div class="last-session-note">📝 {{ last_log.notes }}</div>
+                        {% endif %}
                     </div>
                     {% endif %}
 
@@ -217,6 +221,12 @@
                             <button type="button" class="set-ctrl-btn" data-add-set>+ set</button>
                         </div>
 
+                        <button type="button" class="note-toggle" aria-expanded="false">＋ Add note</button>
+                        <div class="note-field form-group" hidden>
+                            <textarea name="notes" rows="2" maxlength="500"
+                                      placeholder="Optional note — how did it feel?"></textarea>
+                        </div>
+
                         <div class="form-error"></div>
                         <button type="submit" class="btn primary full-width">Log Exercise</button>
                     </form>
@@ -265,6 +275,12 @@
                         <div class="set-controls">
                             <button type="button" class="set-ctrl-btn" data-remove-set>− set</button>
                             <button type="button" class="set-ctrl-btn" data-add-set>+ set</button>
+                        </div>
+
+                        <button type="button" class="note-toggle" aria-expanded="false">＋ Add note</button>
+                        <div class="note-field form-group" hidden>
+                            <textarea name="notes" rows="2" maxlength="500"
+                                      placeholder="Optional note — how did it feel?"></textarea>
                         </div>
 
                         <div class="form-error"></div>

@@ -461,7 +461,7 @@ Tick when the phase's PR is **merged**. The executing session updates this file 
 appends a short entry to `docs/IMPROVEMENTS.md` (new "Feature work" section) in the
 same PR as the phase itself.
 
-- [ ] Phase 1 — Workout management quick wins (delete + notes)
+- [x] Phase 1 — Workout management quick wins (delete + notes)
 - [ ] Phase 2 — De-emphasize BWF (routine visibility)
 - [ ] Phase 3 — Email foundation + forgot password
 - [ ] Phase 4 — Reminders: ICS feed + email

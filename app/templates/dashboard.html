@@ -112,7 +112,14 @@
             <div class="workout-card">
                 <h4>{{ workout.formatted_date() }}</h4>
                 <p>{{ workout.routine_type.upper() if workout.routine_type in ('bwf', 'gym') else workout.routine_type }} · {{ workout.exercises.count() }} exercises</p>
-                <a href="{{ url_for('main.view_workout', workout_id=workout.id) }}" class="btn secondary">View</a>
+                <div class="workout-card-actions">
+                    <a href="{{ url_for('main.view_workout', workout_id=workout.id) }}" class="btn secondary">View</a>
+                    <form method="POST" action="{{ url_for('main.delete_workout', workout_id=workout.id) }}"
+                          onsubmit="return confirm('Delete this workout and its logs?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="restore-btn danger" aria-label="Delete workout from {{ workout.formatted_date() }}">🗑</button>
+                    </form>
+                </div>
             </div>
             {% endfor %}
         </div>

@@ -10,7 +10,8 @@
 
 - **AI program generator** — preview the generated program, regenerate with feedback ("less volume", "no overhead pressing"), then save it as a routine alongside BWF/Gym; uses a shared server key or your own Claude API key (stored encrypted)
 - **Quickstart** — the app opens to your last-used routine with a one-tap "Start Workout" button
-- **Workout sessions** — start a workout, log exercises as you go, end when done (empty workouts are discarded)
+- **Workout sessions** — start a workout, log exercises as you go, end when done (empty workouts are discarded); past workouts can be deleted from the dashboard or workout detail page
+- **Exercise notes** — optional note on any log form ("felt heavy", "used the thick bar"); notes show up in your workout history and as a 📝 hint next to the last-session preview
 - **Routine editing (Gym)** — add your own exercises (name, sets, reps, equipment) or remove built-in ones, right from the home page; removals are restorable
 - **Flexible sets** — add or remove sets on any logging form (1–10), for light days and crazy days alike
 - **Progression system (BWF)** — hit 3 sets of 8+ reps and the app advances you to the next exercise progression automatically

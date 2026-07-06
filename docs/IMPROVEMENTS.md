@@ -4,6 +4,15 @@ A record of the engineering-improvement work carried out against
 [`IMPROVEMENT_PLAN.md`](IMPROVEMENT_PLAN.md) (now archived here in `docs/`). All six
 phases are complete and merged to `main`.
 
+## Feature work ([`FEATURE_PLAN.md`](../FEATURE_PLAN.md))
+
+- **Phase 1 — Workout management quick wins**: `POST /workout/<id>/delete` (owner-checked,
+  cascades to logs, ends the active session if it's the one deleted) with confirm-guarded
+  buttons on the dashboard cards and workout detail page; collapsible per-exercise note
+  field on both inline log forms (reusing the existing `ExerciseLog.notes` column,
+  truncated server-side at 500 chars), surfaced in workout history, the last-session
+  summary, and as a 📝 indicator on exercise cards.
+
 **Quality bar throughout:** every phase shipped CI-green (ruff + pytest), the
 suite grew to **70 tests at ~88% coverage**, and the frontend/PWA phases were
 verified end-to-end in a headless browser (Playwright).

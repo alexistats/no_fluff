@@ -589,7 +589,7 @@ def _log_gym_exercise(exercise_name, workout_id):
             weight_per_set=','.join(weights) if has_weights else None,
             weight_unit=weight_unit if has_weights else None,
             progression_level=None,
-            notes=request.form.get('notes', ''),
+            notes=request.form.get('notes', '').strip()[:500],
             workout_id=workout_id,
         )
     )
@@ -610,7 +610,7 @@ def _log_bwf_exercise(exercise_name, workout_id):
             sets_completed=len(reps_list),
             reps_per_set=','.join(reps_list),
             progression_level=progression_level,
-            notes=request.form.get('notes', ''),
+            notes=request.form.get('notes', '').strip()[:500],
             workout_id=workout_id,
         )
     )
@@ -828,6 +828,25 @@ def view_workout(workout_id):
         exercise_logs=exercise_logs,
         progression_names=progression_names,
     )
+
+
+@main.route('/workout/<int:workout_id>/delete', methods=['POST'])
+@login_required
+def delete_workout(workout_id):
+    workout = db.session.get(Workout, workout_id)
+    if workout is None or workout.user_id != current_user.id:
+        flash('Workout not found.')
+        return redirect(url_for('main.dashboard'))
+
+    # Deleting the in-progress workout also ends the logging session.
+    if session.get('current_workout_id') == workout_id:
+        session.pop('current_workout_id', None)
+        session.pop('current_routine_type', None)
+
+    db.session.delete(workout)  # ORM cascade removes its ExerciseLog rows
+    db.session.commit()
+    flash('Workout deleted.')
+    return redirect(url_for('main.dashboard'))
 
 
 # ── AI program generation ──────────────────────────────────────────────
