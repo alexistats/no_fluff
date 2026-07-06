@@ -33,6 +33,8 @@ from app.models import (
     leading_int,
 )
 from app.services import stats
+from app.services.email import send_email
+from app.services.reset_tokens import generate_reset_token, verify_reset_token
 from app.services.routines import active_ai_programs, routine_display_name
 
 main = Blueprint('main', __name__)
@@ -361,6 +363,70 @@ def register():
 def logout():
     logout_user()
     return redirect(url_for('main.home'))
+
+
+def _external_url_for(endpoint, **values):
+    """Absolute URL for use in emails.
+
+    Prefers the configured APP_BASE_URL (trusted) over the request host, so a
+    spoofed Host header can't steer emailed links; local dev falls back to the
+    request host.
+    """
+    path = url_for(endpoint, **values)
+    base = current_app.config.get('APP_BASE_URL')
+    if base:
+        return base.rstrip('/') + path
+    return request.url_root.rstrip('/') + path
+
+
+@main.route('/forgot_password', methods=['GET', 'POST'])
+@limiter.limit('3/hour', methods=['POST'])
+def forgot_password():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.home'))
+
+    if request.method == 'POST':
+        email_addr = request.form.get('email', '').strip()
+        user = User.query.filter_by(email=email_addr).first() if email_addr else None
+        if user:
+            reset_url = _external_url_for('main.reset_password', token=generate_reset_token(user))
+            send_email(
+                user.email,
+                'Reset your NoFluff password',
+                f'Reset your NoFluff password: {reset_url}\n\n'
+                'The link expires in 1 hour. If this was not you, ignore this email.',
+            )
+        # One message either way — don't reveal which emails are registered.
+        flash('If that email is registered, a reset link is on its way.')
+        return redirect(url_for('main.login'))
+
+    return render_template('forgot_password.html')
+
+
+@main.route('/reset_password/<token>', methods=['GET', 'POST'])
+@limiter.limit('10/hour', methods=['POST'])
+def reset_password(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('main.home'))
+
+    user = verify_reset_token(token)
+    if user is None:
+        flash('That reset link is invalid or has expired — request a new one.')
+        return redirect(url_for('main.forgot_password'))
+
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        if len(password) < MIN_PASSWORD_LENGTH:
+            flash(f'Password must be at least {MIN_PASSWORD_LENGTH} characters.')
+        elif password != request.form.get('confirm_password', ''):
+            flash('Passwords do not match.')
+        else:
+            user.password_hash = generate_password_hash(password)
+            db.session.commit()
+            flash('Password updated — log in with your new password.')
+            return redirect(url_for('main.login'))
+
+    return render_template('reset_password.html', token=token)
 
 
 @main.route('/exercise/<section>/<int:index>')

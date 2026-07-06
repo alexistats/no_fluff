@@ -32,6 +32,20 @@ class Config:
     # also store their own key in Settings, which takes precedence.
     ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
+    # Outbound email (password resets, reminders). All optional: with
+    # MAIL_SERVER unset the app logs messages instead of sending (dev mode).
+    # Any SMTP relay works — e.g. Brevo's free tier or a Gmail app password.
+    MAIL_SERVER = os.environ.get('MAIL_SERVER')
+    MAIL_PORT = int(os.environ.get('MAIL_PORT', '587'))
+    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    MAIL_FROM = os.environ.get('MAIL_FROM')
+
+    # Absolute base URL used for links in emails (e.g. https://app.onrender.com).
+    # Set it in production so emailed links can't be steered by a spoofed Host
+    # header; local dev falls back to the request host.
+    APP_BASE_URL = os.environ.get('APP_BASE_URL')
+
     _db_uri = os.environ.get('DATABASE_URL') or 'sqlite:///nofluff.db'
     # SQLAlchemy 2.x requires 'postgresql://' — Render/Neon provide 'postgres://'
     if _db_uri.startswith('postgres://'):

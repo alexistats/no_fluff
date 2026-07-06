@@ -11,7 +11,10 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-fileConfig(config.config_file_name)
+# disable_existing_loggers=False: the app runs this during its startup
+# migration, and fileConfig's default (True) would permanently silence the
+# already-configured app logger for the life of the process.
+fileConfig(config.config_file_name, disable_existing_loggers=False)
 logger = logging.getLogger('alembic.env')
 
 
