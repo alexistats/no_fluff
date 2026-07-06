@@ -32,6 +32,13 @@ class Config:
     # also store their own key in Settings, which takes precedence.
     ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
+    # Model used for AI program generation. Defaults to Sonnet: strong quality
+    # for structured program generation at a fraction of Opus's output price.
+    # Set AI_MODEL to trade cost for capability (e.g. 'claude-opus-4-8' for a
+    # future premium tier). Keep to models that support the effort parameter and
+    # structured outputs — Haiku 4.5 rejects 'effort' and would need code changes.
+    AI_MODEL = os.environ.get('AI_MODEL', 'claude-sonnet-5')
+
     _db_uri = os.environ.get('DATABASE_URL') or 'sqlite:///nofluff.db'
     # SQLAlchemy 2.x requires 'postgresql://' — Render/Neon provide 'postgres://'
     if _db_uri.startswith('postgres://'):
