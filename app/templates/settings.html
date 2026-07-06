@@ -38,5 +38,25 @@
         </form>
         <p class="settings-hint">Your key is stored encrypted and never shown again in full.</p>
     </section>
+
+    <section class="settings-section">
+        <h3>Routines</h3>
+        <p class="settings-hint">
+            Hide built-in routines you don't use — they disappear from the home tabs,
+            schedule pickers, and dashboard. Your history is kept, and you can bring
+            them back any time.
+        </p>
+        <form method="POST" action="{{ url_for('main.settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="routines">
+            {% for pref in routine_prefs %}
+            <label class="routine-pref">
+                <input type="checkbox" name="show_{{ pref.key }}" {% if pref.visible %}checked{% endif %}>
+                Show {{ pref.label }} routine
+            </label>
+            {% endfor %}
+            <button type="submit" class="btn primary">Save routine visibility</button>
+        </form>
+    </section>
 </div>
 {% endblock %}

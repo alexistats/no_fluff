@@ -80,8 +80,8 @@
 
     {% endif %}{# end total_workouts > 0 #}
 
-    {# ── BWF Progressions ── #}
-    {% if user_progressions %}
+    {# ── BWF Progressions — only when BWF is visible and actually used ── #}
+    {% if show_bwf_progressions %}
     <div class="dash-section">
         <h3 class="dash-section-title">BWF Progressions</h3>
         <div class="progression-cards">

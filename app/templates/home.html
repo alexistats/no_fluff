@@ -7,10 +7,10 @@
 <div class="routine-container">
 
     <div class="routine-tabs">
-        <a href="{{ url_for('main.home', routine='bwf') }}"
-           class="routine-tab {% if routine_type == 'bwf' %}active{% endif %}">BWF</a>
-        <a href="{{ url_for('main.home', routine='gym') }}"
-           class="routine-tab {% if routine_type == 'gym' %}active{% endif %}">Gym</a>
+        {% for key in visible_builtins %}
+        <a href="{{ url_for('main.home', routine=key) }}"
+           class="routine-tab {% if routine_type == key %}active{% endif %}">{{ 'BWF' if key == 'bwf' else 'Gym' }}</a>
+        {% endfor %}
         {% for program in ai_programs %}
         <a href="{{ url_for('main.home', routine=program.routine_key) }}"
            class="routine-tab {% if routine_type == program.routine_key %}active{% endif %}">✨ {{ program.name }}</a>

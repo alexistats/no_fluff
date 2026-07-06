@@ -2299,3 +2299,19 @@ body.timer-visible main {
     color: var(--danger);
     border-color: var(--danger);
 }
+
+/* ── Routine visibility (Settings, Phase 2) ───────────────────── */
+.routine-pref {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.routine-pref input[type='checkbox'] {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: var(--accent);
+}

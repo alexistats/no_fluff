@@ -462,7 +462,7 @@ appends a short entry to `docs/IMPROVEMENTS.md` (new "Feature work" section) in 
 same PR as the phase itself.
 
 - [x] Phase 1 — Workout management quick wins (delete + notes)
-- [ ] Phase 2 — De-emphasize BWF (routine visibility)
+- [x] Phase 2 — De-emphasize BWF (routine visibility)
 - [ ] Phase 3 — Email foundation + forgot password
 - [ ] Phase 4 — Reminders: ICS feed + email
 - [ ] Phase 5 — Offline logging + sync

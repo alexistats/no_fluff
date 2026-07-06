@@ -28,7 +28,7 @@
         <div class="rotation-add-row">
             <select id="rotationAddSelect" class="rotation-add-select">
                 <option value="">Add routine to rotation…</option>
-                {% for r in all_routines %}
+                {% for r in pickable_routines %}
                 <option value="{{ r.key }}">{{ r.label }}</option>
                 {% endfor %}
             </select>
@@ -67,7 +67,7 @@
 <div id="calPopover" class="cal-popover" hidden>
     <p class="cal-popover-date" id="calPopoverDate"></p>
     <ul class="cal-picker-list" id="calPickerList">
-        {% for r in all_routines %}
+        {% for r in pickable_routines %}
         <li>
             <button type="button" class="cal-picker-btn" data-routine="{{ r.key }}">{{ r.label }}</button>
         </li>
