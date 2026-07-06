@@ -171,3 +171,22 @@
         activeDayEl = null;
     });
 })();
+
+// ── Calendar feed: copy link ─────────────────────────────────────
+document.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-copy-target]');
+    if (!btn) return;
+    const input = document.getElementById(btn.dataset.copyTarget);
+    if (!input) return;
+    input.select();
+    const original = btn.textContent;
+    const done = function () {
+        btn.textContent = 'Copied ✓';
+        setTimeout(function () { btn.textContent = original; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value).then(done).catch(function () {});
+    } else {
+        try { document.execCommand('copy'); done(); } catch (err) {}
+    }
+});

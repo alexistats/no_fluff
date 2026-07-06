@@ -61,6 +61,48 @@
         </div>
     </div>
 
+    {# ── Calendar feed ── #}
+    <div class="schedule-section">
+        <h3>Calendar feed</h3>
+        {% if feed_url %}
+        <p class="schedule-hint">
+            Subscribe from any calendar app and your planned workouts appear there automatically.
+            Google Calendar: <em>Other calendars → From URL</em>. Cozi: <em>Settings →
+            Connected Calendars → Add a calendar from a URL</em>. Apps refresh feeds on their own
+            schedule (Cozi ~hourly; Google can take up to a day) — for a reliable nudge, turn on
+            email reminders in <a href="{{ url_for('main.settings') }}">Settings</a>.
+        </p>
+        <div class="feed-url-row">
+            <input type="text" id="feedUrl" class="feed-url-input" readonly value="{{ feed_url }}"
+                   aria-label="Calendar feed URL">
+            <button type="button" class="btn secondary" data-copy-target="feedUrl">Copy</button>
+        </div>
+        <div class="feed-actions">
+            <form method="POST" action="{{ url_for('main.manage_calendar_feed') }}"
+                  onsubmit="return confirm('The old link will stop working. Continue?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="regenerate">
+                <button type="submit" class="restore-btn">Regenerate link</button>
+            </form>
+            <form method="POST" action="{{ url_for('main.manage_calendar_feed') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="disable">
+                <button type="submit" class="restore-btn danger">Disable</button>
+            </form>
+        </div>
+        {% else %}
+        <p class="schedule-hint">
+            Get a private link you can subscribe to from Google Calendar, Cozi, or any calendar
+            app — planned workouts show up there automatically.
+        </p>
+        <form method="POST" action="{{ url_for('main.manage_calendar_feed') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="enable">
+            <button type="submit" class="btn primary">Enable calendar feed</button>
+        </form>
+        {% endif %}
+    </div>
+
 </div>
 
 {# ── Day picker popover ── #}

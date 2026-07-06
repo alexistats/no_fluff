@@ -2315,3 +2315,27 @@ body.timer-visible main {
     height: 1.05rem;
     accent-color: var(--accent);
 }
+
+/* ── Calendar feed (Schedule, Phase 4) ────────────────────────── */
+.feed-url-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.feed-url-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface);
+    color: var(--text-2);
+    font-size: 0.8rem;
+    padding: 0.45rem 0.6rem;
+    font-family: inherit;
+}
+
+.feed-actions {
+    display: flex;
+    gap: 0.5rem;
+}

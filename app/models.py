@@ -45,6 +45,15 @@ class User(UserMixin, db.Model):
     # pickers, and the dashboard. Hiding never deletes history, and direct
     # URLs to a hidden routine still work.
     hidden_routines = db.Column(db.String(100), default='')
+    # Calendar feed + email reminders. ics_token is the secret in the feed URL
+    # (None = feed disabled); reminder_time is local 'HH:MM' with the user's
+    # UTC offset captured from the browser; last_reminded_on (a *local* date)
+    # makes the hourly reminder job idempotent.
+    ics_token = db.Column(db.String(64), unique=True, index=True, nullable=True)
+    reminder_enabled = db.Column(db.Boolean, default=False)
+    reminder_time = db.Column(db.String(5), default='07:00')
+    tz_offset_minutes = db.Column(db.Integer, default=0)  # minutes east of UTC
+    last_reminded_on = db.Column(db.Date, nullable=True)
 
     def hidden_routine_keys(self):
         return {key for key in (self.hidden_routines or '').split(',') if key}

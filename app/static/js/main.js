@@ -160,6 +160,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (box) box.hidden = !box.hidden;
     });
 
+    // ── Reminder settings: capture the browser's UTC offset ────────
+    // getTimezoneOffset() is minutes *behind* UTC, so flip the sign to store
+    // "minutes east of UTC" (e.g. Toronto in July = -240).
+    const tzField = document.getElementById('tzOffsetField');
+    if (tzField) tzField.value = String(-new Date().getTimezoneOffset());
+
     // ── Per-exercise note toggle (log forms) ───────────────────────
     document.addEventListener('click', function (e) {
         const t = e.target.closest('.note-toggle');

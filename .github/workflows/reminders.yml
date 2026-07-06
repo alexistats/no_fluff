@@ -1,0 +1,31 @@
+# Hourly ping that triggers workout-reminder emails. The endpoint decides
+# who's actually due (per-user local time + planned workout + not already
+# reminded today), so firing every hour is cheap and idempotent.
+#
+# Setup: repo secret CRON_SECRET (same value as the Render env var) and repo
+# variable APP_URL (e.g. https://your-app.onrender.com). The ping also wakes
+# a sleeping free-tier dyno, hence the generous timeout.
+name: Workout reminders
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger reminder send
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "APP_URL variable or CRON_SECRET secret not configured; skipping."
+            exit 0
+          fi
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            --max-time 120 --retry 2 --retry-delay 15 \
+            "$APP_URL/tasks/send_reminders"

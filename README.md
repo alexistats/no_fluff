@@ -23,6 +23,7 @@
 - **Rest timer** — built-in 60/90/120s countdown with vibration on completion
 - **Activity dashboard** — workout frequency, per-routine breakdown, most-trained exercises, and strength trends (charts), plus current progression levels and recent history
 - **Scheduling & rotation** — set a preferred routine rotation and plan workouts on a 2-week calendar; the home page surfaces today's planned or next-in-rotation workout
+- **Calendar feed & email reminders** — subscribe to a private iCalendar link from Google Calendar, Cozi, or Apple Calendar to see planned workouts in your own calendar, and opt into reminder emails on planned days (Settings → Workout reminders; sent at your chosen local time)
 - **Installable PWA** — add it to your phone's home screen; the app shell and assets are cached, in-progress log forms are saved locally, and there's a graceful offline page for flaky gym Wi-Fi
 - **Mobile-first UI** — responsive layout designed to be used at the gym from a phone
 - **Dark mode** — light/dark theme toggle in the header; defaults to your system preference and remembers your choice
@@ -65,6 +66,7 @@ The Python version is pinned in `.python-version` (3.13) — pyenv/uv pick it up
 | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | Plain-SMTP fallback for any other relay (or local testing); ignored when `BREVO_API_KEY` is set. With neither configured, emails are logged instead of sent (fine for local dev) | unset (console backend) |
 | `MAIL_FROM` | Sender for outbound email, e.g. `NoFluff <no-reply@your-domain>` — must be a verified sender/domain with your email provider | `MAIL_USERNAME` |
 | `APP_BASE_URL` | Absolute base URL used for links in emails (e.g. `https://your-app.onrender.com`). Set it in production so emailed links can't be steered by a spoofed Host header | request host |
+| `CRON_SECRET` | Shared secret an external cron must present (`Authorization: Bearer …`) to trigger reminder emails via `POST /tasks/send_reminders`. Unset = endpoint disabled | unset |
 | `LOG_LEVEL` | Log level for the app logger (`DEBUG`, `INFO`, `WARNING`, …) | `INFO` |
 
 > **Rotating `SECRET_KEY`:** stored user API keys are encrypted with a key derived from `SECRET_KEY` by default, so rotating `SECRET_KEY` makes them undecryptable (the Settings page then prompts the user to re-enter their key rather than erroring). To rotate `SECRET_KEY` while preserving stored keys, first set `FERNET_KEY` to the currently derived value: `python -c "import base64,hashlib,os; print(base64.urlsafe_b64encode(hashlib.sha256(os.environ['SECRET_KEY'].encode()).digest()).decode())"`.
@@ -111,6 +113,8 @@ The app is set up for a free-tier deployment:
    - Environment variables: `DATABASE_URL` (Neon connection string) and `SECRET_KEY` (e.g., `python -c "import secrets; print(secrets.token_hex(32))"`)
 
 The schema is created and kept up to date automatically on startup (see [Database migrations](#database-migrations)). Note that both free tiers sleep when idle — the first request after a quiet period takes ~30–60s.
+
+**Reminder emails (optional):** set `CRON_SECRET` on Render (any long random string), then in the GitHub repo add an Actions **secret** `CRON_SECRET` (same value) and a **variable** `APP_URL` (your Render URL). The hourly [`reminders.yml`](.github/workflows/reminders.yml) workflow pings the app, which emails users who opted in under Settings → Workout reminders. The ping also doubles as a keep-warm for the sleeping free tier.
 
 ## Progressive Web App
 

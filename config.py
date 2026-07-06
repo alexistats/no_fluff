@@ -49,6 +49,10 @@ class Config:
     # header; local dev falls back to the request host.
     APP_BASE_URL = os.environ.get('APP_BASE_URL')
 
+    # Shared secret an external cron must present (Authorization: Bearer …) to
+    # trigger /tasks/send_reminders. Unset = the endpoint 404s (feature off).
+    CRON_SECRET = os.environ.get('CRON_SECRET')
+
     _db_uri = os.environ.get('DATABASE_URL') or 'sqlite:///nofluff.db'
     # SQLAlchemy 2.x requires 'postgresql://' — Render/Neon provide 'postgres://'
     if _db_uri.startswith('postgres://'):
