@@ -12,7 +12,10 @@ from flask import current_app
 
 from app.models import UserApiKey
 
-MODEL = 'claude-opus-4-8'
+# Fallback when AI_MODEL is not configured. Sonnet gives strong structured-output
+# quality for program generation at a fraction of Opus's per-token price; override
+# via the AI_MODEL config/env var (see config.py).
+DEFAULT_MODEL = 'claude-sonnet-5'
 ALLOWED_EQUIPMENT = ('barbell', 'dumbbell', 'machine', 'bodyweight')
 MAX_SECTIONS = 7
 MAX_EXERCISES_PER_SECTION = 12
@@ -133,7 +136,7 @@ def describe_inputs(inputs):
 def _get_completion(client, messages):
     """One Claude call. Factored out so tests can stub the transport."""
     return client.messages.create(
-        model=MODEL,
+        model=current_app.config.get('AI_MODEL', DEFAULT_MODEL),
         max_tokens=16000,
         thinking={'type': 'adaptive'},
         system=SYSTEM_PROMPT,
