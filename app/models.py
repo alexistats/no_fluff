@@ -12,6 +12,10 @@ from app import db, login_manager
 
 _LEADING_INT = re.compile(r'-?\d+')
 
+# Built-in routine keys, in display order. AI programs ('ai-<id>') are per-user
+# and live in GeneratedProgram; visibility preferences only apply to these.
+BUILTIN_ROUTINES = ('bwf', 'gym')
+
 
 def leading_int(token):
     """First integer in a token ('30s' -> 30, '8' -> 8), or None if none.
@@ -37,6 +41,21 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(64), unique=True, index=True)
     email = db.Column(db.String(120), unique=True, index=True)
     password_hash = db.Column(db.String(256))
+    # Comma-separated BUILTIN_ROUTINES keys the user has hidden from tabs,
+    # pickers, and the dashboard. Hiding never deletes history, and direct
+    # URLs to a hidden routine still work.
+    hidden_routines = db.Column(db.String(100), default='')
+
+    def hidden_routine_keys(self):
+        return {key for key in (self.hidden_routines or '').split(',') if key}
+
+    def is_routine_hidden(self, routine_key):
+        return routine_key in self.hidden_routine_keys()
+
+    def visible_builtin_routines(self):
+        hidden = self.hidden_routine_keys()
+        return [key for key in BUILTIN_ROUTINES if key not in hidden]
+
     # Deleting a user cleans up everything owned by them (cascade is ORM-level;
     # no ON DELETE in the schema, so it works the same on SQLite and Postgres).
     workouts = db.relationship(

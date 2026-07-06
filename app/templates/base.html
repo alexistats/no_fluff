@@ -58,7 +58,8 @@
                     {% if session.get('current_workout_id') %}
                         <a href="{{ url_for('main.end_workout') }}" class="workout-active">End Workout</a>
                     {% else %}
-                        <a href="{{ url_for('main.start_workout', routine_type=session.get('current_routine_view', 'bwf')) }}">Start Workout</a>
+                        {# No fallback here — start_workout resolves the default (visibility-aware) server-side #}
+                        <a href="{{ url_for('main.start_workout', routine_type=session.get('current_routine_view')) }}">Start Workout</a>
                     {% endif %}
                     <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
                     <a href="{{ url_for('main.schedule') }}">Schedule</a>

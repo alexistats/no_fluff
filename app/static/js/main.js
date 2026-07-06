@@ -74,6 +74,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (form) saveDraft(form);
     });
 
+    // A restored draft may carry a note — reveal the (default-hidden) field so
+    // the user sees what they typed rather than silently resubmitting it.
+    document.querySelectorAll('.exercise-log-form').forEach(function (form) {
+        const ta = form.querySelector('.note-field textarea');
+        if (!ta || !ta.value) return;
+        ta.closest('.note-field').hidden = false;
+        const btn = form.querySelector('.note-toggle');
+        if (btn) { btn.setAttribute('aria-expanded', 'true'); btn.textContent = '− Hide note'; }
+    });
+
     // ── Unit state ─────────────────────────────────────────────────
     let currentUnit = localStorage.getItem('weightUnit') || 'lbs';
 
@@ -148,6 +158,19 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!t) return;
         const box = t.parentElement.querySelector('.add-exercise-box');
         if (box) box.hidden = !box.hidden;
+    });
+
+    // ── Per-exercise note toggle (log forms) ───────────────────────
+    document.addEventListener('click', function (e) {
+        const t = e.target.closest('.note-toggle');
+        if (!t) return;
+        const form = t.closest('form');
+        const wrap = form && form.querySelector('.note-field');
+        if (!wrap) return;
+        wrap.hidden = !wrap.hidden;
+        t.setAttribute('aria-expanded', wrap.hidden ? 'false' : 'true');
+        t.textContent = wrap.hidden ? '＋ Add note' : '− Hide note';
+        if (!wrap.hidden) wrap.querySelector('textarea').focus();
     });
 
     // ── Add / remove sets ──────────────────────────────────────────

@@ -19,6 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app import ai_generator, db, limiter
 from app.models import (
+    BUILTIN_ROUTINES,
     CustomExercise,
     ExerciseLog,
     GeneratedProgram,
@@ -124,18 +125,42 @@ def _editable_base_routine(routine_key):
     return program.routine_data() if program else None
 
 
+def _visible_builtin_routines():
+    """Built-in routine keys the current user hasn't hidden (all, if anonymous)."""
+    if not current_user.is_authenticated:
+        return list(BUILTIN_ROUTINES)
+    return current_user.visible_builtin_routines()
+
+
 def _default_routine_view():
-    """Last routine the user interacted with, falling back to bwf."""
+    """Last routine the user interacted with that is still visible, falling back
+    to the first visible built-in, then the first accepted AI program.
+
+    Hidden routines stay reachable by direct URL — they just never win the
+    default.
+    """
     if not current_user.is_authenticated:
         return 'bwf'
+
+    def usable(key):
+        if not key or not _valid_routine_key(key):
+            return False
+        return key not in BUILTIN_ROUTINES or not current_user.is_routine_hidden(key)
+
     view = session.get('current_routine_view')
-    if view and _valid_routine_key(view):
+    if usable(view):
         return view
     last_workout = (
         Workout.query.filter_by(user_id=current_user.id).order_by(Workout.id.desc()).first()
     )
-    if last_workout and _valid_routine_key(last_workout.routine_type):
+    if last_workout and usable(last_workout.routine_type):
         return last_workout.routine_type
+    visible = current_user.visible_builtin_routines()
+    if visible:
+        return visible[0]
+    programs = active_ai_programs(current_user)
+    if programs:
+        return programs[0].routine_key
     return 'bwf'
 
 
@@ -248,6 +273,7 @@ def home():
         ai_program=ai_program,
         ai_programs=ai_programs,
         today_plan=today_plan,
+        visible_builtins=_visible_builtin_routines(),
     )
 
 
@@ -486,9 +512,9 @@ def restore_exercises():
 @main.route('/start_workout')
 @login_required
 def start_workout():
-    routine_type = request.args.get('routine_type', session.get('current_routine_view', 'bwf'))
-    if not _valid_routine_key(routine_type):
-        routine_type = 'bwf'
+    routine_type = request.args.get('routine_type', session.get('current_routine_view'))
+    if not routine_type or not _valid_routine_key(routine_type):
+        routine_type = _default_routine_view()
     workout = Workout(user_id=current_user.id, routine_type=routine_type)
     db.session.add(workout)
     db.session.commit()
@@ -589,7 +615,7 @@ def _log_gym_exercise(exercise_name, workout_id):
             weight_per_set=','.join(weights) if has_weights else None,
             weight_unit=weight_unit if has_weights else None,
             progression_level=None,
-            notes=request.form.get('notes', ''),
+            notes=request.form.get('notes', '').strip()[:500],
             workout_id=workout_id,
         )
     )
@@ -610,7 +636,7 @@ def _log_bwf_exercise(exercise_name, workout_id):
             sets_completed=len(reps_list),
             reps_per_set=','.join(reps_list),
             progression_level=progression_level,
-            notes=request.form.get('notes', ''),
+            notes=request.form.get('notes', '').strip()[:500],
             workout_id=workout_id,
         )
     )
@@ -668,9 +694,19 @@ def dashboard():
         Workout.query.filter_by(user_id=user_id).order_by(Workout.date.desc()).limit(10).all()
     )
 
+    # Progressions are seeded for everyone at registration, so gate the BWF
+    # section on actual BWF activity (a workout or an advancement), and on the
+    # routine being visible at all.
+    user_progressions = UserProgression.query.filter_by(user_id=user_id).all()
+    has_bwf_activity = db.session.query(Workout.id).filter_by(
+        user_id=user_id, routine_type='bwf'
+    ).first() is not None or any(p.current_progression > 1 for p in user_progressions)
+    show_bwf_progressions = not current_user.is_routine_hidden('bwf') and has_bwf_activity
+
     return render_template(
         'dashboard.html',
-        user_progressions=UserProgression.query.filter_by(user_id=user_id).all(),
+        user_progressions=user_progressions,
+        show_bwf_progressions=show_bwf_progressions,
         progression_data=current_app.config['PROGRESSION_DATA'],
         recent_workouts=recent_workouts,
         total_workouts=counts['total'],
@@ -722,16 +758,23 @@ def schedule():
             }
         )
 
+    # Full list for labelling existing entries (a hidden routine already in the
+    # rotation or calendar keeps working); pickers only offer visible routines.
     all_routines = [
         {'key': 'bwf', 'label': 'BWF'},
         {'key': 'gym', 'label': 'Gym'},
     ] + [{'key': p.routine_key, 'label': p.name} for p in ai_programs]
+    visible = set(_visible_builtin_routines())
+    pickable_routines = [
+        r for r in all_routines if r['key'] in visible or r['key'].startswith('ai-')
+    ]
 
     return render_template(
         'schedule.html',
         rotation=rotation,
         calendar_days=calendar_days,
         all_routines=all_routines,
+        pickable_routines=pickable_routines,
         today=today,
     )
 
@@ -828,6 +871,25 @@ def view_workout(workout_id):
         exercise_logs=exercise_logs,
         progression_names=progression_names,
     )
+
+
+@main.route('/workout/<int:workout_id>/delete', methods=['POST'])
+@login_required
+def delete_workout(workout_id):
+    workout = db.session.get(Workout, workout_id)
+    if workout is None or workout.user_id != current_user.id:
+        flash('Workout not found.')
+        return redirect(url_for('main.dashboard'))
+
+    # Deleting the in-progress workout also ends the logging session.
+    if session.get('current_workout_id') == workout_id:
+        session.pop('current_workout_id', None)
+        session.pop('current_routine_type', None)
+
+    db.session.delete(workout)  # ORM cascade removes its ExerciseLog rows
+    db.session.commit()
+    flash('Workout deleted.')
+    return redirect(url_for('main.dashboard'))
 
 
 # ── AI program generation ──────────────────────────────────────────────
@@ -988,11 +1050,22 @@ def settings():
     record = UserApiKey.query.filter_by(user_id=current_user.id, provider='anthropic').first()
 
     if request.method == 'POST':
-        if request.form.get('action') == 'clear':
+        action = request.form.get('action')
+        if action == 'clear':
             if record:
                 db.session.delete(record)
                 db.session.commit()
             flash('Your API key was removed.')
+        elif action == 'routines':
+            hidden = [key for key in BUILTIN_ROUTINES if not request.form.get(f'show_{key}')]
+            if len(hidden) == len(BUILTIN_ROUTINES) and not active_ai_programs(current_user):
+                flash('Keep at least one routine visible (or save an AI program first).')
+            else:
+                current_user.hidden_routines = ','.join(hidden)
+                db.session.commit()
+                if session.get('current_routine_view') in hidden:
+                    session.pop('current_routine_view')
+                flash('Routine visibility updated.')
         else:
             raw = request.form.get('api_key', '').strip()
             if not raw:
@@ -1007,9 +1080,18 @@ def settings():
         return redirect(url_for('main.settings'))
 
     key_hint = record.key_hint() if record else None
+    routine_prefs = [
+        {
+            'key': key,
+            'label': routine_display_name(key, []),
+            'visible': not current_user.is_routine_hidden(key),
+        }
+        for key in BUILTIN_ROUTINES
+    ]
     return render_template(
         'settings.html',
         key_hint=key_hint,
         key_undecryptable=bool(record) and key_hint is None,
         server_key_available=bool(current_app.config.get('ANTHROPIC_API_KEY')),
+        routine_prefs=routine_prefs,
     )

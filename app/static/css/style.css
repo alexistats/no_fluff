@@ -2254,3 +2254,64 @@ body.timer-visible main {
     from { opacity: 0; transform: translate(-50%, 8px); }
     to   { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* ── Per-exercise notes (Phase 1) ─────────────────────────────── */
+.note-toggle {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0.2rem 0;
+    margin-bottom: 0.35rem;
+}
+
+.note-indicator {
+    cursor: help;
+    font-size: 0.8rem;
+}
+
+.last-session-note {
+    flex-basis: 100%;
+    font-size: 0.8rem;
+    color: var(--text-2);
+    margin-top: 0.3rem;
+    overflow-wrap: anywhere;
+}
+
+/* ── Workout deletion (Phase 1) ───────────────────────────────── */
+.workout-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.workout-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.restore-btn.danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+/* ── Routine visibility (Settings, Phase 2) ───────────────────── */
+.routine-pref {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0;
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.routine-pref input[type='checkbox'] {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: var(--accent);
+}

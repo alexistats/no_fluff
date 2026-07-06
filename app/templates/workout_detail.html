@@ -4,12 +4,21 @@
 <div class="workout-detail-container">
     <a href="{{ url_for('main.dashboard') }}" class="back-button">&larr; Back to Dashboard</a>
 
-    <h2>Workout on {{ workout.formatted_date() }}</h2>
-    {% if workout.routine_type == 'gym' %}
-    <span class="routine-badge gym">Gym Routine</span>
-    {% else %}
-    <span class="routine-badge bwf">BWF Routine</span>
-    {% endif %}
+    <div class="workout-detail-header">
+        <div>
+            <h2>Workout on {{ workout.formatted_date() }}</h2>
+            {% if workout.routine_type == 'gym' %}
+            <span class="routine-badge gym">Gym Routine</span>
+            {% else %}
+            <span class="routine-badge bwf">BWF Routine</span>
+            {% endif %}
+        </div>
+        <form method="POST" action="{{ url_for('main.delete_workout', workout_id=workout.id) }}"
+              onsubmit="return confirm('Delete this workout and its logs?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="restore-btn danger">🗑 Delete workout</button>
+        </form>
+    </div>
 
     <div class="exercise-logs">
         {% for log in exercise_logs %}
