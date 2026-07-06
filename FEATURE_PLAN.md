@@ -369,6 +369,10 @@ token → 404; reminders endpoint: 403 without/with-wrong bearer; disabled when
 scheduled today **and** not already stamped (drive times via injected "now" or
 `tz_offset_minutes` fixtures); idempotent across two calls; response counts correct.
 
+> **D4 amendment (shipped reality):** Render's network blocks outbound SMTP ports, so
+> the email service gained a Brevo HTTPS API backend — `BREVO_API_KEY` takes
+> precedence over `MAIL_SERVER` (which remains for other relays and local testing).
+
 **Verification**: CI trio; subscribe the feed URL from a phone calendar app if
 possible, else validate the .ics with a validator. **Owner TODO in PR**: set
 `CRON_SECRET` on Render + repo secret `CRON_SECRET` + repo variable `APP_URL`; answer
@@ -434,9 +438,9 @@ tests); user's own key bypasses the lock entirely.
 
 ## Human setup tasks (owner checklist — code never blocks on these)
 
-- [ ] **Phase 3**: sign up for an SMTP provider (recommended: Brevo free tier, 300/day)
-      → set `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`
-      on Render. Also set `APP_BASE_URL` (e.g. `https://<app>.onrender.com`).
+- [x] **Phase 3**: Brevo account created; domain authenticated. On Render set
+      `BREVO_API_KEY` (HTTPS API — Render blocks SMTP ports), `MAIL_FROM`, and
+      `APP_BASE_URL`.
 - [ ] **Phase 4**: set `CRON_SECRET` on Render; add repo **secret** `CRON_SECRET`
       (same value) and repo **variable** `APP_URL`; enable the workflow.
 - [ ] **Phase 4**: subscribe to the feed — Google Calendar: *Other calendars → From
@@ -464,7 +468,7 @@ same PR as the phase itself.
 - [x] Phase 1 — Workout management quick wins (delete + notes)
 - [x] Phase 2 — De-emphasize BWF (routine visibility)
 - [x] Phase 3 — Email foundation + forgot password
-- [ ] Phase 4 — Reminders: ICS feed + email
+- [x] Phase 4 — Reminders: ICS feed + email
 - [ ] Phase 5 — Offline logging + sync
 - [ ] Phase 6 — Shared-key access lock
 

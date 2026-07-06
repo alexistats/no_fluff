@@ -1,8 +1,13 @@
+import hmac
 import json
+import re
+import secrets
 from datetime import UTC, date, datetime, timedelta
 
 from flask import (
     Blueprint,
+    Response,
+    abort,
     current_app,
     flash,
     get_flashed_messages,
@@ -17,7 +22,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app import ai_generator, db, limiter
+from app import ai_generator, csrf, db, limiter
 from app.models import (
     BUILTIN_ROUTINES,
     CustomExercise,
@@ -32,7 +37,7 @@ from app.models import (
     WorkoutSchedule,
     leading_int,
 )
-from app.services import stats
+from app.services import ics, stats
 from app.services.email import send_email
 from app.services.reset_tokens import generate_reset_token, verify_reset_token
 from app.services.routines import active_ai_programs, routine_display_name
@@ -835,6 +840,10 @@ def schedule():
         r for r in all_routines if r['key'] in visible or r['key'].startswith('ai-')
     ]
 
+    feed_url = None
+    if current_user.ics_token:
+        feed_url = _external_url_for('main.calendar_feed', token=current_user.ics_token)
+
     return render_template(
         'schedule.html',
         rotation=rotation,
@@ -842,6 +851,7 @@ def schedule():
         all_routines=all_routines,
         pickable_routines=pickable_routines,
         today=today,
+        feed_url=feed_url,
     )
 
 
@@ -937,6 +947,98 @@ def view_workout(workout_id):
         exercise_logs=exercise_logs,
         progression_names=progression_names,
     )
+
+
+# ── Calendar feed & reminders ─────────────────────────────────────────
+
+
+@main.route('/calendar/feed/<token>.ics')
+def calendar_feed(token):
+    # Unauthenticated by design: calendar apps fetch anonymously. The token is
+    # the secret; unknown tokens 404. The feed carries dates + labels only.
+    user = User.query.filter_by(ics_token=token).first() if token else None
+    if user is None:
+        abort(404)
+
+    today = date.today()
+    schedules = (
+        WorkoutSchedule.query.filter(
+            WorkoutSchedule.user_id == user.id,
+            WorkoutSchedule.scheduled_date >= today - timedelta(days=1),
+            WorkoutSchedule.scheduled_date <= today + timedelta(weeks=8),
+        )
+        .order_by(WorkoutSchedule.scheduled_date)
+        .all()
+    )
+    programs = active_ai_programs(user)
+    labels = {s.routine_type: routine_display_name(s.routine_type, programs) for s in schedules}
+    return Response(ics.build_feed(schedules, labels), mimetype='text/calendar')
+
+
+@main.route('/schedule/calendar_feed', methods=['POST'])
+@login_required
+def manage_calendar_feed():
+    action = request.form.get('action')
+    if action in ('enable', 'regenerate'):
+        current_user.ics_token = secrets.token_urlsafe(24)
+        flash(
+            'Calendar feed enabled — subscribe to the link from your calendar app.'
+            if action == 'enable'
+            else 'Calendar feed link regenerated — the old link no longer works.'
+        )
+    elif action == 'disable':
+        current_user.ics_token = None
+        flash('Calendar feed disabled.')
+    db.session.commit()
+    return redirect(url_for('main.schedule'))
+
+
+@main.route('/tasks/send_reminders', methods=['POST'])
+@csrf.exempt
+def send_reminders():
+    """Send today's workout-reminder emails. Hit hourly by an external cron.
+
+    Guarded by CRON_SECRET (compare_digest); 404s when the feature is
+    unconfigured. Idempotent per local day via User.last_reminded_on.
+    """
+    secret = current_app.config.get('CRON_SECRET')
+    if not secret:
+        abort(404)
+    supplied = request.headers.get('Authorization', '').removeprefix('Bearer ').strip()
+    if not hmac.compare_digest(supplied, secret):
+        abort(403)
+
+    now_utc = datetime.now(UTC)
+    sent = skipped = 0
+    for user in User.query.filter_by(reminder_enabled=True).all():
+        local_now = now_utc + timedelta(minutes=user.tz_offset_minutes or 0)
+        local_today = local_now.date()
+        due = (
+            local_now.strftime('%H:%M') >= (user.reminder_time or '07:00')
+            and user.last_reminded_on != local_today
+        )
+        entry = (
+            WorkoutSchedule.query.filter_by(user_id=user.id, scheduled_date=local_today).first()
+            if due
+            else None
+        )
+        if entry is None:
+            skipped += 1
+            continue
+
+        label = routine_display_name(entry.routine_type, active_ai_programs(user))
+        delivered = send_email(
+            user.email,
+            f'Workout today: {label}',
+            f'You have {label} planned today.\n\nOpen NoFluff: {_external_url_for("main.home")}\n',
+        )
+        if delivered:
+            user.last_reminded_on = local_today
+            sent += 1
+        else:
+            skipped += 1
+    db.session.commit()
+    return jsonify({'sent': sent, 'skipped': skipped})
 
 
 @main.route('/workout/<int:workout_id>/delete', methods=['POST'])
@@ -1132,6 +1234,16 @@ def settings():
                 if session.get('current_routine_view') in hidden:
                     session.pop('current_routine_view')
                 flash('Routine visibility updated.')
+        elif action == 'reminders':
+            current_user.reminder_enabled = bool(request.form.get('reminder_enabled'))
+            time_str = request.form.get('reminder_time', '')
+            if re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', time_str):
+                current_user.reminder_time = time_str
+            offset = request.form.get('tz_offset_minutes', type=int)
+            if offset is not None and -14 * 60 <= offset <= 14 * 60:
+                current_user.tz_offset_minutes = offset
+            db.session.commit()
+            flash('Reminder settings saved.')
         else:
             raw = request.form.get('api_key', '').strip()
             if not raw:

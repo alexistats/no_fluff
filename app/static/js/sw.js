@@ -1,6 +1,6 @@
 // NoFluff service worker.
 // Bump VERSION when the cached shell/assets should be refreshed (see README).
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `nofluff-${VERSION}`;
 const OFFLINE_URL = '/offline';
 

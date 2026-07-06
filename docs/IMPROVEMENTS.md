@@ -27,6 +27,16 @@ phases are complete and merged to `main`.
   change; 1-hour expiry). `/forgot_password` (rate-limited 3/hour, uniform response —
   no account enumeration) and `/reset_password/<token>`; emailed links are built from
   `APP_BASE_URL` when configured to keep Host-header spoofing out of reset emails.
+  Post-ship: a Brevo HTTPS-API backend was added (`BREVO_API_KEY`, takes precedence)
+  after discovering Render blocks outbound SMTP ports.
+- **Phase 4 — Calendar feed + reminder emails**: per-user tokenized iCalendar feed
+  (`/calendar/feed/<token>.ics`, hand-assembled RFC 5545 in `app/services/ics.py` —
+  all-day events, escaping, 75-octet folding) with enable/copy/regenerate/disable
+  controls on the Schedule page; works with Google Calendar, Cozi, and Apple Calendar.
+  Reminder emails: per-user local send time (browser-captured UTC offset), stamped
+  idempotent via `last_reminded_on`, triggered by an hourly GitHub Actions cron
+  (`.github/workflows/reminders.yml`) hitting `POST /tasks/send_reminders` guarded by
+  `CRON_SECRET` + `compare_digest`. Migration `0004` adds the five user columns.
 
 **Quality bar throughout:** every phase shipped CI-green (ruff + pytest), the
 suite grew to **70 tests at ~88% coverage**, and the frontend/PWA phases were

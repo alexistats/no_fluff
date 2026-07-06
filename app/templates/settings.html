@@ -58,5 +58,32 @@
             <button type="submit" class="btn primary">Save routine visibility</button>
         </form>
     </section>
+
+    <section class="settings-section">
+        <h3>Workout reminders</h3>
+        <p class="settings-hint">
+            Get an email on days you have a workout planned on the
+            <a href="{{ url_for('main.schedule') }}">schedule</a>.
+        </p>
+        <form method="POST" action="{{ url_for('main.settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="reminders">
+            {# Filled by main.js with the browser's UTC offset so "remind me at 7:00"
+               means 7:00 *your* time #}
+            <input type="hidden" name="tz_offset_minutes" id="tzOffsetField"
+                   value="{{ current_user.tz_offset_minutes or 0 }}">
+            <label class="routine-pref">
+                <input type="checkbox" name="reminder_enabled"
+                       {% if current_user.reminder_enabled %}checked{% endif %}>
+                Email me on planned workout days
+            </label>
+            <div class="form-group">
+                <label for="reminder_time">Remind me at</label>
+                <input type="time" id="reminder_time" name="reminder_time"
+                       value="{{ current_user.reminder_time or '07:00' }}">
+            </div>
+            <button type="submit" class="btn primary">Save reminders</button>
+        </form>
+    </section>
 </div>
 {% endblock %}
