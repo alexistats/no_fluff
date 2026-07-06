@@ -32,9 +32,12 @@ class Config:
     # also store their own key in Settings, which takes precedence.
     ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
-    # Outbound email (password resets, reminders). All optional: with
-    # MAIL_SERVER unset the app logs messages instead of sending (dev mode).
-    # Any SMTP relay works — e.g. Brevo's free tier or a Gmail app password.
+    # Outbound email (password resets, reminders). All optional: with neither
+    # BREVO_API_KEY nor MAIL_SERVER set, the app logs messages instead of
+    # sending (dev mode). BREVO_API_KEY (an 'xkeysib-…' key) uses Brevo's
+    # HTTPS API and is the backend that works on Render, which blocks
+    # outbound SMTP ports; MAIL_SERVER is plain SMTP for any other relay.
+    BREVO_API_KEY = os.environ.get('BREVO_API_KEY')
     MAIL_SERVER = os.environ.get('MAIL_SERVER')
     MAIL_PORT = int(os.environ.get('MAIL_PORT', '587'))
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')

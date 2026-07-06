@@ -221,3 +221,53 @@ def test_send_email_smtp_failure_returns_false(app, monkeypatch):
     with app.app_context():
         app.config.update(MAIL_SERVER='smtp.example.com')
         assert email_service.send_email('to@example.com', 'Hi', 'Body') is False
+
+
+class _FakeAPIResponse:
+    status = 201
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def test_send_email_brevo_api_backend_takes_precedence(app, monkeypatch):
+    import json
+
+    captured = {}
+
+    def fake_urlopen(request, timeout=None):
+        captured['url'] = request.full_url
+        captured['api_key'] = request.get_header('Api-key')
+        captured['payload'] = json.loads(request.data)
+        return _FakeAPIResponse()
+
+    monkeypatch.setattr('app.services.email.urllib.request.urlopen', fake_urlopen)
+    with app.app_context():
+        # MAIL_SERVER is also set — the HTTPS API must win (SMTP is blocked on Render).
+        app.config.update(
+            BREVO_API_KEY='xkeysib-test',
+            MAIL_SERVER='smtp.example.com',
+            MAIL_FROM='NoFluff <no-reply@example.com>',
+        )
+        assert email_service.send_email('to@example.com', 'Hi', 'Body') is True
+
+    assert captured['url'] == email_service.BREVO_API_URL
+    assert captured['api_key'] == 'xkeysib-test'
+    assert captured['payload']['sender'] == {'email': 'no-reply@example.com', 'name': 'NoFluff'}
+    assert captured['payload']['to'] == [{'email': 'to@example.com'}]
+    assert captured['payload']['textContent'] == 'Body'
+
+
+def test_send_email_brevo_api_failure_returns_false(app, monkeypatch):
+    import urllib.error
+
+    def fake_urlopen(request, timeout=None):
+        raise urllib.error.URLError('boom')
+
+    monkeypatch.setattr('app.services.email.urllib.request.urlopen', fake_urlopen)
+    with app.app_context():
+        app.config.update(BREVO_API_KEY='xkeysib-test', MAIL_FROM='no-reply@example.com')
+        assert email_service.send_email('to@example.com', 'Hi', 'Body') is False
