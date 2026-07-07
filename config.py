@@ -53,6 +53,11 @@ class Config:
     # trigger /tasks/send_reminders. Unset = the endpoint 404s (feature off).
     CRON_SECRET = os.environ.get('CRON_SECRET')
 
+    # Optional access code gating the shared ANTHROPIC_API_KEY: when set, users
+    # must enter it once in Settings before AI generation uses the shared key
+    # (their own saved key always works). Unset = shared key open to everyone.
+    SHARED_KEY_ACCESS_CODE = os.environ.get('SHARED_KEY_ACCESS_CODE')
+
     _db_uri = os.environ.get('DATABASE_URL') or 'sqlite:///nofluff.db'
     # SQLAlchemy 2.x requires 'postgresql://' — Render/Neon provide 'postgres://'
     if _db_uri.startswith('postgres://'):

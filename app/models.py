@@ -54,6 +54,10 @@ class User(UserMixin, db.Model):
     reminder_time = db.Column(db.String(5), default='07:00')
     tz_offset_minutes = db.Column(db.Integer, default=0)  # minutes east of UTC
     last_reminded_on = db.Column(db.Date, nullable=True)
+    # When the user entered the shared-AI access code (None = still locked
+    # while a code is configured). A timestamp rather than a bool so a future
+    # "code rotated at T, re-lock earlier unlocks" needs no migration.
+    shared_key_unlocked_at = db.Column(db.DateTime, nullable=True)
 
     def hidden_routine_keys(self):
         return {key for key in (self.hidden_routines or '').split(',') if key}

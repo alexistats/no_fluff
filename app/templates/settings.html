@@ -8,8 +8,12 @@
         <h3>Claude API key</h3>
         <p class="settings-hint">
             Used by the <a href="{{ url_for('main.generate') }}">AI program generator</a>.
-            {% if server_key_available %}
+            {% if shared_key_state == 'open' %}
             This app has a shared key, so a personal key is optional — yours is used instead when set.
+            {% elif shared_key_state == 'unlocked' %}
+            You've unlocked this app's shared key, so a personal key is optional — yours is used instead when set.
+            {% elif shared_key_state == 'locked' %}
+            This app's shared key needs an access code (below) — or save your own key here.
             {% else %}
             This app has no shared key, so you need your own to generate programs.
             Get one at <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>.
@@ -38,6 +42,28 @@
         </form>
         <p class="settings-hint">Your key is stored encrypted and never shown again in full.</p>
     </section>
+
+    {% if shared_key_state in ('locked', 'unlocked') %}
+    <section class="settings-section">
+        <h3>Shared AI access</h3>
+        {% if shared_key_state == 'unlocked' %}
+        <p class="settings-key-status">✓ Unlocked — AI generation uses this app's shared Claude key.</p>
+        {% else %}
+        <p class="settings-hint">
+            This app's shared Claude key is locked. Enter the access code from the app
+            owner — or skip this and save your own API key above.
+        </p>
+        <form method="POST" action="{{ url_for('main.unlock_shared_key') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label for="access_code">Access code</label>
+                <input type="password" id="access_code" name="access_code" autocomplete="off">
+            </div>
+            <button type="submit" class="btn primary">Unlock</button>
+        </form>
+        {% endif %}
+    </section>
+    {% endif %}
 
     <section class="settings-section">
         <h3>Routines</h3>

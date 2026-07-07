@@ -47,6 +47,13 @@ phases are complete and merged to `main`.
   `Workout.client_uuid`, dedupe by `ExerciseLog.client_log_id`, BWF progressions
   advance through sync). Migration `0005`. `APP_BASE_URL` is now normalized to
   scheme+host so a pasted path can't leak into emailed links or the calendar feed.
+- **Phase 6 — Shared-key access lock**: optional `SHARED_KEY_ACCESS_CODE` gates the
+  server-wide `ANTHROPIC_API_KEY`. `shared_key_available_to(user)` in
+  `ai_generator.py` is the single gate (swap-in point for a future paid
+  entitlement); users unlock once via Settings → Shared AI access (rate-limited
+  5/min, `compare_digest`, timestamp stored in `User.shared_key_unlocked_at` —
+  migration `0006`). Personal keys always bypass the lock; with no code configured,
+  behavior is unchanged. This completes all six FEATURE_PLAN phases.
 
 **Quality bar throughout:** every phase shipped CI-green (ruff + pytest), the
 suite grew to **70 tests at ~88% coverage**, and the frontend/PWA phases were
