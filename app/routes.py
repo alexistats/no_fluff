@@ -301,6 +301,36 @@ def offline():
     return render_template('offline.html')
 
 
+# ── Legal pages ────────────────────────────────────────────────────────
+
+# Shown on the Terms and Privacy pages. Operator name, jurisdiction, and the
+# effective date are safe to keep in source; the contact address is read from
+# config so a personal email isn't committed to a public repo (set
+# LEGAL_CONTACT_EMAIL before publishing).
+LEGAL_OPERATOR = 'NoFluff'
+LEGAL_JURISDICTION = 'Ontario, Canada'
+LEGAL_EFFECTIVE_DATE = 'July 7, 2026'
+
+
+def _legal_context():
+    return {
+        'operator': LEGAL_OPERATOR,
+        'jurisdiction': LEGAL_JURISDICTION,
+        'effective_date': LEGAL_EFFECTIVE_DATE,
+        'contact_email': current_app.config.get('LEGAL_CONTACT_EMAIL'),
+    }
+
+
+@main.route('/terms')
+def terms():
+    return render_template('terms.html', **_legal_context())
+
+
+@main.route('/privacy')
+def privacy():
+    return render_template('privacy.html', **_legal_context())
+
+
 @main.route('/login', methods=['GET', 'POST'])
 @limiter.limit('5/minute', methods=['POST'])
 def login():

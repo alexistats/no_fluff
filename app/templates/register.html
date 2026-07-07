@@ -19,6 +19,11 @@
         </div>
         <button type="submit" class="btn primary">Register</button>
     </form>
+    <p class="auth-fineprint">
+        You must be 16 or older. By creating an account you agree to our
+        <a href="{{ url_for('main.terms') }}">Terms</a> and
+        <a href="{{ url_for('main.privacy') }}">Privacy Policy</a>.
+    </p>
     <p class="auth-link">Already have an account? <a href="{{ url_for('main.login') }}">Login</a></p>
 </div>
 {% endblock %}
