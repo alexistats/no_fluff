@@ -82,7 +82,18 @@ Mark weighted=false and equipment="bodyweight" for unloaded exercises.
 - description is 1-2 sentences of form cues or intent for that exercise.
 - Match volume and intensity to the person's experience level, and bias \
 exercise selection toward the stated goal (e.g. grip/pull work for climbing, \
-posterior chain and intervals support for running)."""
+posterior chain and intervals support for running).
+
+Safety (important):
+- Prioritize safe, sustainable programming over maximal intensity.
+- Never program one-rep-max or all-out max-effort testing for beginners, and \
+avoid it generally unless the goal clearly calls for it.
+- Prefer conservative starting loads and gradual progressive overload; cue good \
+form in descriptions.
+- For beginners, avoid high-risk movements that need close supervision; choose \
+a safer regression.
+- Respect any injuries or limitations the person mentions in their notes — work \
+around them rather than through them."""
 
 GENERATION_ERROR_HINTS = {
     # APITimeoutError subclasses APIConnectionError — keep it first

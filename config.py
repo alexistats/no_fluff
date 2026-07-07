@@ -58,6 +58,11 @@ class Config:
     # (their own saved key always works). Unset = shared key open to everyone.
     SHARED_KEY_ACCESS_CODE = os.environ.get('SHARED_KEY_ACCESS_CODE')
 
+    # Monitored inbox shown as the contact point in the Terms and Privacy
+    # Policy. Kept out of source (public repo) — set before publishing those
+    # pages, since a privacy policy needs a real address people can reach.
+    LEGAL_CONTACT_EMAIL = os.environ.get('LEGAL_CONTACT_EMAIL')
+
     _db_uri = os.environ.get('DATABASE_URL') or 'sqlite:///nofluff.db'
     # SQLAlchemy 2.x requires 'postgresql://' — Render/Neon provide 'postgres://'
     if _db_uri.startswith('postgres://'):

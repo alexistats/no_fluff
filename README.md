@@ -27,6 +27,7 @@
 - **Installable PWA with real offline support** — add it to your phone's home screen; recently viewed pages open with no signal, and sets you log offline (you can even start the workout offline) are saved on-device and synced back automatically when the connection returns
 - **Mobile-first UI** — responsive layout designed to be used at the gym from a phone
 - **Dark mode** — light/dark theme toggle in the header; defaults to your system preference and remembers your choice
+- **Terms, Privacy & safety** — plain-language Terms of Service and Privacy Policy pages (linked from the footer and registration), plus a health/safety disclaimer shown wherever AI programs are generated, and safety guardrails baked into the AI coach's prompt
 
 ## Tech stack
 
@@ -63,6 +64,7 @@ The Python version is pinned in `.python-version` (3.13) — pyenv/uv pick it up
 | `FERNET_KEY` | Optional key (a `Fernet.generate_key()` value) for encrypting stored user API keys. When unset, one is derived from `SECRET_KEY`. Set it to decouple the two — see the note below. | derived from `SECRET_KEY` |
 | `ANTHROPIC_API_KEY` | Shared Claude API key for the AI program generator — optional; users can also save their own key in Settings (stored encrypted, takes precedence) | unset (feature prompts for a user key) |
 | `SHARED_KEY_ACCESS_CODE` | Optional access code gating the shared key: users must enter it once (Settings → Shared AI access) before AI generation uses `ANTHROPIC_API_KEY`. Personal keys always work. Unset = shared key open to all accounts | unset |
+| `LEGAL_CONTACT_EMAIL` | Monitored inbox shown as the contact point on the Terms and Privacy pages. **Set before publishing** — a privacy policy needs a reachable address (kept out of source since the repo is public) | unset (pages show a generic fallback) |
 | `BREVO_API_KEY` | [Brevo](https://www.brevo.com) API key (`xkeysib-…`) for outbound email over HTTPS — **use this on Render**, whose network blocks outbound SMTP ports. Takes precedence over `MAIL_SERVER` | unset |
 | `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | Plain-SMTP fallback for any other relay (or local testing); ignored when `BREVO_API_KEY` is set. With neither configured, emails are logged instead of sent (fine for local dev) | unset (console backend) |
 | `MAIL_FROM` | Sender for outbound email, e.g. `NoFluff <no-reply@your-domain>` — must be a verified sender/domain with your email provider | `MAIL_USERNAME` |

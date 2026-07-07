@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Terms of Service{% endblock %}
+{% block content %}
+<div class="legal-page">
+    <h1>Terms of Service</h1>
+    <p class="legal-meta">Last updated {{ effective_date }}</p>
+
+    <p>These terms are a plain-language agreement between you and {{ operator }} ("we",
+        "us"), who runs NoFluff (the "Service"). By creating an account or using the
+        Service, you agree to them. If you don't agree, please don't use NoFluff.</p>
+
+    <h2>1. What NoFluff is</h2>
+    <p>NoFluff is a workout tracker. It lets you follow built-in routines, build your own,
+        optionally generate a program with AI, log your workouts, and see your progress.
+        It's provided free of charge. It is a tool for organizing your own training — it is
+        not a personal trainer, a coach, or a healthcare provider.</p>
+
+    <h2>2. Who can use it</h2>
+    <p>You must be at least 16 years old to use NoFluff. By using it, you confirm that you
+        are. NoFluff is not intended for children.</p>
+
+    <h2>3. Your account</h2>
+    <p>Keep your password private — you're responsible for what happens under your account.
+        Accounts are for one person; don't share logins or use someone else's account.
+        Tell us promptly if you think your account has been accessed without permission.</p>
+
+    <h2 id="ai">4. AI-generated programs</h2>
+    <p>If you use the AI program generator, your inputs (your goal, equipment, schedule, and
+        any notes) are sent to our AI provider, which returns a suggested program. This is a
+        machine-generated suggestion. It may contain mistakes, may not suit your body,
+        experience, or health, and is <strong>not professional fitness or medical
+        advice</strong>. Review any generated program with common sense before doing it, and
+        adjust or ignore anything that isn't right for you.</p>
+
+    <h2 id="health">5. Health, exercise, and your own risk</h2>
+    <p>Exercise carries inherent risks, including injury. NoFluff doesn't know your medical
+        history and can't tell whether a given exercise is safe for you. <strong>You use
+        NoFluff, and you exercise, at your own risk.</strong></p>
+    <ul>
+        <li>Talk to a physician before starting any new exercise program — especially if you
+            have (or might have) a medical condition, an injury, are pregnant, or have been
+            inactive.</li>
+        <li>Warm up, use proper form, and start with conservative weights and volume.</li>
+        <li>Stop immediately and seek medical help if you feel pain, dizziness, shortness of
+            breath, chest discomfort, or anything else that feels wrong.</li>
+        <li>Nothing in NoFluff — including AI programs, progressions, and suggested weights —
+            is medical advice or a substitute for a qualified professional.</li>
+    </ul>
+
+    <h2>6. Your content</h2>
+    <p>Your workout logs, notes, and custom routines are yours. You grant us permission to
+        store and process them only as needed to run the Service for you (for example, to
+        show your history and progress). We don't sell your content or use it for
+        advertising. See our <a href="{{ url_for('main.privacy') }}">Privacy Policy</a> for
+        how we handle your data.</p>
+
+    <h2>7. Acceptable use</h2>
+    <p>Please don't: break the law with NoFluff; try to break, overload, or gain
+        unauthorized access to the Service or other people's accounts; scrape or abuse it;
+        or resell it as your own. We may suspend or remove accounts that do.</p>
+
+    <h2>8. Availability — the Service is provided "as is"</h2>
+    <p>NoFluff is a free, small project and is provided "as is" and "as available", without
+        warranties of any kind. We don't promise it will always be online, error-free, or
+        that your data will never be lost. It may run on services that sleep when idle, so it
+        can be slow to wake, and it may change or be discontinued. Keep your own record of
+        anything you can't afford to lose.</p>
+
+    <h2>9. Services we rely on</h2>
+    <p>NoFluff uses a few third-party providers to operate — for hosting, our database,
+        sending email, and AI generation. Your data is handled by these providers only as
+        needed to run the Service; they're listed in our
+        <a href="{{ url_for('main.privacy') }}">Privacy Policy</a>.</p>
+
+    <h2>10. Limitation of liability</h2>
+    <p>To the fullest extent allowed by law, {{ operator }} is not liable for any injury,
+        loss, or damages arising from your use of NoFluff or from exercising — including
+        following any routine, progression, suggested weight, or AI-generated program. Some
+        places don't allow certain limitations; where that's the case, this section applies
+        as much as the law allows.</p>
+
+    <h2>11. Changes</h2>
+    <p>We may update the Service and these terms over time. If we make a significant change,
+        we'll update the date at the top. Continuing to use NoFluff after a change means you
+        accept the updated terms.</p>
+
+    <h2>12. Ending your use</h2>
+    <p>You can stop using NoFluff and delete your account at any time. We may suspend or end
+        access for accounts that break these terms or to protect the Service.</p>
+
+    <h2>13. Governing law</h2>
+    <p>These terms are governed by the laws of {{ jurisdiction }}, without regard to conflict
+        of law rules.</p>
+
+    <h2>14. Contact</h2>
+    <p>Questions about these terms? Reach us at
+        {% if contact_email %}<a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{%
+        else %}the contact address published on the app{% endif %}.</p>
+</div>
+{% endblock %}

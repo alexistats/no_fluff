@@ -2385,3 +2385,57 @@ body.timer-visible main {
     padding: 0.15rem 0.6rem;
     cursor: pointer;
 }
+
+/* ── Legal pages (Terms, Privacy) ─────────────────────────────── */
+.legal-page {
+    max-width: 720px;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+.legal-page h1 {
+    margin-bottom: 0.25rem;
+}
+
+.legal-page h2 {
+    margin-top: 1.75rem;
+    font-size: 1.15rem;
+}
+
+.legal-page ul {
+    padding-left: 1.25rem;
+}
+
+.legal-page li {
+    margin-bottom: 0.4rem;
+}
+
+.legal-meta {
+    color: var(--text-3);
+    font-size: 0.85rem;
+    margin-bottom: 1.5rem;
+}
+
+.footer-links {
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+}
+
+.auth-fineprint {
+    font-size: 0.8rem;
+    color: var(--text-3);
+    margin-top: 0.75rem;
+    text-align: center;
+}
+
+/* ── AI safety disclaimer ─────────────────────────────────────── */
+.ai-disclaimer {
+    background-color: var(--surface-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 0.9rem;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-2);
+    margin-bottom: 1.25rem;
+}

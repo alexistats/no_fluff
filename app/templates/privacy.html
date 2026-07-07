@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy{% endblock %}
+{% block content %}
+<div class="legal-page">
+    <h1>Privacy Policy</h1>
+    <p class="legal-meta">Last updated {{ effective_date }}</p>
+
+    <p>NoFluff is run by {{ operator }}. The short version: we collect the little we need to
+        run a workout tracker, we don't sell your data, and there are no ads or tracking.
+        This page explains the details.</p>
+
+    <h2>1. What we collect</h2>
+    <ul>
+        <li><strong>Account details</strong> — your username, email address, and a securely
+            hashed version of your password (we never store the password itself).</li>
+        <li><strong>Your workout data</strong> — the routines, workouts, sets, reps, weights,
+            notes, schedules, and progressions you record.</li>
+        <li><strong>Your settings</strong> — things like which routines you've hidden, your
+            reminder time and time-zone offset, and (if you enable it) the private token in
+            your calendar-feed link.</li>
+        <li><strong>Your own API key</strong>, if you choose to add one for AI generation —
+            stored encrypted, and shown only as the last few characters.</li>
+        <li><strong>Basic technical logs</strong> — like your IP address and request details,
+            kept briefly to operate and secure the Service.</li>
+    </ul>
+
+    <h2>2. What we don't collect</h2>
+    <p>No advertising or analytics trackers. No selling or renting your data. No location
+        tracking (your time-zone offset is a number like "−240", not your location). We ask
+        for only what the app needs to work.</p>
+
+    <h2>3. Cookies and on-device storage</h2>
+    <p>We use one essential cookie to keep you logged in — there's no advertising or tracking
+        cookie. NoFluff also stores some data in your browser on your own device (for offline
+        logging and to save a set you're typing); that stays on your device and isn't used to
+        track you.</p>
+
+    <h2>4. How we use your data</h2>
+    <p>To run the Service: to sign you in, save and show your workouts and progress, send
+        password-reset emails, send workout reminders <em>if</em> you turn them on, and — when
+        you use the AI generator — create a program from the inputs you provide. That's it.</p>
+
+    <h2>5. Who we share it with</h2>
+    <p>We don't sell your data. We use a few trusted providers to run NoFluff, and share only
+        what each needs to do its job:</p>
+    <ul>
+        <li><strong>Hosting &amp; database</strong> — our app and database run on cloud
+            hosting providers that store your data on our behalf.</li>
+        <li><strong>Email</strong> — when we send you a password reset or a reminder, your
+            email address is handled by our email-sending provider.</li>
+        <li><strong>AI generation</strong> — if you use the AI generator, the inputs you type
+            (goal, equipment, schedule, notes) are sent to our AI provider (Anthropic) to
+            create your program. Please don't put sensitive personal or health information in
+            those fields.</li>
+    </ul>
+    <p>We may also disclose information if the law requires it, or to protect the Service and
+        its users.</p>
+
+    <h2>6. Where your data is stored</h2>
+    <p>Our providers may process and store data on servers outside your country, including in
+        the United States. By using NoFluff you understand your data may be handled in other
+        countries, under their laws.</p>
+
+    <h2>7. How we protect it</h2>
+    <p>Passwords are hashed, any API key you save is encrypted, and traffic is served over
+        HTTPS. No method of storage or transmission is ever 100% secure, but we take
+        reasonable steps to protect your information.</p>
+
+    <h2>8. How long we keep it</h2>
+    <p>We keep your data for as long as your account exists. When you delete your account, we
+        delete your workouts, logs, settings, and any stored key. Brief technical logs and
+        backups may persist for a short time before rolling off.</p>
+
+    <h2>9. Your rights and choices</h2>
+    <ul>
+        <li><strong>Access &amp; correction</strong> — you can view and edit your data in the
+            app, or ask us for a copy.</li>
+        <li><strong>Deletion</strong> — you can ask us to delete your account and its data at
+            any time.</li>
+        <li><strong>Reminders</strong> — turn workout reminder emails on or off in Settings at
+            any time.</li>
+        <li><strong>Calendar feed</strong> — regenerate or disable your feed link in the app;
+            regenerating instantly revokes the old one.</li>
+    </ul>
+    <p>To exercise any of these, use the app or contact us
+        {% if contact_email %}at <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{%
+        else %}at the address published on the app{% endif %}. Depending on where you live
+        (for example under Canada's PIPEDA or the EU/UK GDPR), you may have additional rights,
+        which we honor where they apply.</p>
+
+    <h2>10. Children</h2>
+    <p>NoFluff is not for anyone under 16, and we don't knowingly collect data from children.
+        If you believe a child has given us information, contact us and we'll remove it.</p>
+
+    <h2>11. Changes</h2>
+    <p>If we update this policy, we'll change the date at the top. Significant changes will be
+        made clear in the app.</p>
+
+    <h2>12. Contact</h2>
+    <p>Questions about your privacy? Reach us at
+        {% if contact_email %}<a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{%
+        else %}the contact address published on the app{% endif %}.</p>
+</div>
+{% endblock %}

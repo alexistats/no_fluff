@@ -8,6 +8,8 @@
     <p class="ai-program-description">{{ program.description }}</p>
     {% endif %}
 
+    {% include "_ai_disclaimer.html" %}
+
     {% for section, exercises in routine.items() %}
     <section class="routine-section">
         <h2>{{ section }}</h2>
