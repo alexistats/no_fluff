@@ -470,7 +470,9 @@ same PR as the phase itself.
 - [x] Phase 3 — Email foundation + forgot password
 - [x] Phase 4 — Reminders: ICS feed + email
 - [x] Phase 5 — Offline logging + sync
-- [ ] Phase 6 — Shared-key access lock
+- [x] Phase 6 — Shared-key access lock
+
+**All six phases are shipped.** 🎉
 
 ## Kickoff prompt (reuse for every session)
 

@@ -102,8 +102,24 @@ class GenerationError(Exception):
     """Raised with a user-facing message when generation fails."""
 
 
+def shared_key_available_to(user):
+    """Whether the server-wide key may be used by this user.
+
+    With no SHARED_KEY_ACCESS_CODE configured, the shared key is open to every
+    account (the original behavior). With a code configured, the user must
+    have unlocked it in Settings. This is the single gate to swap for a paid
+    entitlement later.
+    """
+    if not current_app.config.get('ANTHROPIC_API_KEY'):
+        return False
+    if not current_app.config.get('SHARED_KEY_ACCESS_CODE'):
+        return True
+    return user.shared_key_unlocked_at is not None
+
+
 def resolve_api_key(user):
-    """User's stored key if present and decryptable, else the server key, else None."""
+    """User's stored key if present and decryptable, else the server key
+    (when available to this user), else None."""
     record = UserApiKey.query.filter_by(user_id=user.id, provider='anthropic').first()
     if record:
         key = record.get_key()
@@ -111,7 +127,9 @@ def resolve_api_key(user):
             return key
         # Stored key is undecryptable (e.g. SECRET_KEY rotated) — fall back to
         # the server key rather than failing outright.
-    return current_app.config.get('ANTHROPIC_API_KEY')
+    if shared_key_available_to(user):
+        return current_app.config.get('ANTHROPIC_API_KEY')
+    return None
 
 
 def describe_inputs(inputs):

@@ -1208,7 +1208,7 @@ def generate():
         )
 
     if not api_key:
-        flash('No Claude API key available. Add yours in Settings first.')
+        flash('No Claude API key available — unlock shared access or add your own key in Settings.')
         return redirect(url_for('main.settings'))
 
     inputs = _generation_inputs_from_form(request.form)
@@ -1282,7 +1282,7 @@ def retry_program(program_id):
 
     api_key = ai_generator.resolve_api_key(current_user)
     if not api_key:
-        flash('No Claude API key available. Add yours in Settings first.')
+        flash('No Claude API key available — unlock shared access or add your own key in Settings.')
         return redirect(url_for('main.settings'))
 
     try:
@@ -1375,10 +1375,40 @@ def settings():
         }
         for key in BUILTIN_ROUTINES
     ]
+    # How the shared server key looks from this user's chair:
+    # none (no key) / open (no access code) / locked / unlocked.
+    if not current_app.config.get('ANTHROPIC_API_KEY'):
+        shared_key_state = 'none'
+    elif not current_app.config.get('SHARED_KEY_ACCESS_CODE'):
+        shared_key_state = 'open'
+    elif current_user.shared_key_unlocked_at:
+        shared_key_state = 'unlocked'
+    else:
+        shared_key_state = 'locked'
     return render_template(
         'settings.html',
         key_hint=key_hint,
         key_undecryptable=bool(record) and key_hint is None,
-        server_key_available=bool(current_app.config.get('ANTHROPIC_API_KEY')),
+        shared_key_state=shared_key_state,
         routine_prefs=routine_prefs,
     )
+
+
+@main.route('/settings/unlock_ai', methods=['POST'])
+@login_required
+@limiter.limit('5/minute')
+def unlock_shared_key():
+    code = current_app.config.get('SHARED_KEY_ACCESS_CODE')
+    if not code or not current_app.config.get('ANTHROPIC_API_KEY'):
+        flash('Shared AI access is not enabled on this server.')
+        return redirect(url_for('main.settings'))
+
+    supplied = request.form.get('access_code', '').strip()
+    if supplied and hmac.compare_digest(supplied, code):
+        if current_user.shared_key_unlocked_at is None:
+            current_user.shared_key_unlocked_at = datetime.now(UTC)
+            db.session.commit()
+        flash('Shared AI access unlocked — generate away!')
+    else:
+        flash('That access code was not recognized.')
+    return redirect(url_for('main.settings'))

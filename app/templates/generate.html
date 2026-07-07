@@ -8,8 +8,8 @@
 
     {% if not has_api_key %}
     <div class="flash-message">
-        No Claude API key is configured yet.
-        <a href="{{ url_for('main.settings') }}">Add your key in Settings</a> to generate programs.
+        No Claude API key is available yet.
+        <a href="{{ url_for('main.settings') }}">Unlock shared access or add your own key in Settings</a> to generate programs.
     </div>
     {% endif %}
 
