@@ -4,7 +4,9 @@
 {% block content %}
 {# AI programs use the gym exercise schema, so they share the gym UI paths #}
 {% set gym_style = routine_type != 'bwf' %}
-<div class="routine-container">
+{# data-active-workout lets cached copies of this page know whether logging
+   should target a server workout (offline logging falls back to a local one) #}
+<div class="routine-container" data-active-workout="{{ session.get('current_workout_id') or '' }}">
 
     <div class="routine-tabs">
         {% for key in visible_builtins %}
@@ -88,8 +90,9 @@
             {% set card_id = section_i|string ~ '_' ~ ex_i|string %}
             {% set last_log = last_logs.get(exercise.name) %}
             {% set is_warmup = section == 'Warm-up' %}
-            {% set workout_active = session.get('current_workout_id') %}
-            {% set can_log = current_user.is_authenticated and workout_active and not is_warmup %}
+            {# Panels render whenever logged in (so cached pages can log offline);
+               main.js decides toggle-vs-navigate based on an active workout #}
+            {% set can_log = current_user.is_authenticated and not is_warmup %}
 
             <li class="exercise-item">
                 <div class="exercise-card-header"
