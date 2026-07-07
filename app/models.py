@@ -98,9 +98,13 @@ class Workout(db.Model):
     date = db.Column(db.DateTime, default=utc_now)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), index=True)
     routine_type = db.Column(db.String(20), default='bwf')
+    # Set when the workout was created by offline sync: replays of the same
+    # batch find this workout again instead of creating a duplicate.
+    client_uuid = db.Column(db.String(36), nullable=True)
     exercises = db.relationship(
         'ExerciseLog', backref='workout', lazy='dynamic', cascade='all, delete-orphan'
     )
+    __table_args__ = (db.UniqueConstraint('user_id', 'client_uuid', name='uq_workout_user_client'),)
 
     def formatted_date(self):
         return self.date.strftime('%Y-%m-%d %H:%M')
@@ -115,6 +119,9 @@ class ExerciseLog(db.Model):
     weight_unit = db.Column(db.String(5), nullable=True)  # 'lbs' or 'kg'
     progression_level = db.Column(db.Integer, nullable=True)
     notes = db.Column(db.Text)
+    # Client-generated id for offline-logged sets; the unique index makes
+    # sync replays (lost responses, double 'online' events) duplicate-proof.
+    client_log_id = db.Column(db.String(36), nullable=True, unique=True)
     workout_id = db.Column(db.Integer, db.ForeignKey('workout.id'), index=True)
 
     def get_reps_list(self):

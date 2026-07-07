@@ -24,7 +24,7 @@
 - **Activity dashboard** — workout frequency, per-routine breakdown, most-trained exercises, and strength trends (charts), plus current progression levels and recent history
 - **Scheduling & rotation** — set a preferred routine rotation and plan workouts on a 2-week calendar; the home page surfaces today's planned or next-in-rotation workout
 - **Calendar feed & email reminders** — subscribe to a private iCalendar link from Google Calendar, Cozi, or Apple Calendar to see planned workouts in your own calendar, and opt into reminder emails on planned days (Settings → Workout reminders; sent at your chosen local time)
-- **Installable PWA** — add it to your phone's home screen; the app shell and assets are cached, in-progress log forms are saved locally, and there's a graceful offline page for flaky gym Wi-Fi
+- **Installable PWA with real offline support** — add it to your phone's home screen; recently viewed pages open with no signal, and sets you log offline (you can even start the workout offline) are saved on-device and synced back automatically when the connection returns
 - **Mobile-first UI** — responsive layout designed to be used at the gym from a phone
 - **Dark mode** — light/dark theme toggle in the header; defaults to your system preference and remembers your choice
 
@@ -121,7 +121,8 @@ The schema is created and kept up to date automatically on startup (see [Databas
 NoFluff is installable to a phone home screen (`static/manifest.json` + icons) and stays usable on flaky connections via a service worker (`static/js/sw.js`, served at `/sw.js` for root scope):
 
 - **Static assets** are cache-first — combined with the `?v=<hash>` cache-busting, updated files are refetched automatically.
-- **Page navigations** are network-first and fall back to a cached `/offline` page when there's no connection. Nothing authenticated is cached.
+- **Page navigations** are network-first, and successfully loaded pages are kept in a runtime cache so recently viewed pages (your routine, the dashboard) open with no signal; auth pages, Settings, and the calendar feed are never cached, and the runtime cache is cleared on logout. With nothing cached, a `/offline` fallback page is shown.
+- **Offline logging** — sets you log without a connection go into an on-device outbox (IndexedDB) and sync back automatically when you reconnect (on the `online` event, on page load, via Background Sync where supported, or by tapping the "sets to sync" pill). You can even *start* a workout offline: it lives on the device until it syncs, idempotently, via `POST /sync/workout` — replays can't duplicate sets.
 - **Log forms** persist to `localStorage` as you type, so a dropped connection or reload doesn't lose an in-progress set (cleared once the set is logged).
 
 When you change cached assets and want clients to drop the old cache, bump `VERSION` in `static/js/sw.js` (e.g. `'v1'` → `'v2'`); the new worker deletes older caches on activation.

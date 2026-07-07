@@ -37,6 +37,16 @@ phases are complete and merged to `main`.
   idempotent via `last_reminded_on`, triggered by an hourly GitHub Actions cron
   (`.github/workflows/reminders.yml`) hitting `POST /tasks/send_reminders` guarded by
   `CRON_SECRET` + `compare_digest`. Migration `0004` adds the five user columns.
+- **Phase 5 — Offline logging + sync**: service worker v4 adds a runtime page cache
+  (network-first navigations, exclusion list for auth/settings/feed pages, cleared on
+  logout) so recently viewed pages open with no signal. New `static/js/offline.js`
+  keeps an IndexedDB outbox: sets logged offline — against the embedded server
+  workout or a device-local, offline-*started* workout — queue locally with an
+  "offline" badge and a "sets to sync" pill, then replay through the new idempotent
+  `POST /sync/workout` (CSRF-exempt but header+JSON-gated; find-or-create by
+  `Workout.client_uuid`, dedupe by `ExerciseLog.client_log_id`, BWF progressions
+  advance through sync). Migration `0005`. `APP_BASE_URL` is now normalized to
+  scheme+host so a pasted path can't leak into emailed links or the calendar feed.
 
 **Quality bar throughout:** every phase shipped CI-green (ruff + pytest), the
 suite grew to **70 tests at ~88% coverage**, and the frontend/PWA phases were

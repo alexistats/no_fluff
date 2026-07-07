@@ -2339,3 +2339,49 @@ body.timer-visible main {
     display: flex;
     gap: 0.5rem;
 }
+
+/* ── Offline mode (Phase 5) ───────────────────────────────────── */
+.offline-banner {
+    position: sticky;
+    top: 0;
+    z-index: 900;
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--accent-soft, rgba(230, 160, 60, 0.15));
+    color: var(--text);
+    border-bottom: 1px solid var(--border-strong);
+}
+
+.sync-pill {
+    position: fixed;
+    right: 1rem;
+    bottom: 4.5rem;
+    z-index: 950;
+    background-color: var(--accent);
+    color: #fff;
+    border-radius: 999px;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+}
+
+.logged-badge.offline {
+    color: var(--text-2);
+    background-color: var(--surface-3);
+    border-color: var(--border-strong);
+}
+
+.offline-end-btn {
+    margin-left: 0.75rem;
+    background: none;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 0.8rem;
+    font-family: inherit;
+    padding: 0.15rem 0.6rem;
+    cursor: pointer;
+}

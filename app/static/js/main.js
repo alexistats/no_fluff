@@ -94,11 +94,21 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Card accordion ─────────────────────────────────────────────
     let openCardId = null;
 
+    // Panels render whenever the user is logged in; whether a click logs or
+    // navigates depends on there being an active workout — the server one
+    // embedded on the page, or an offline-started one on this device.
+    function loggingActive() {
+        const el = document.querySelector('[data-active-workout]');
+        if (el && el.dataset.activeWorkout) return true;
+        const offline = window.NoFluffOffline && window.NoFluffOffline.getOfflineWorkout();
+        return !!(offline && !offline.ended);
+    }
+
     document.addEventListener('click', function (e) {
         if (e.target.closest('.remove-exercise-form')) return;
         const header = e.target.closest('.exercise-card-header');
         if (!header) return;
-        if (header.dataset.card) toggleCard(header.dataset.card);
+        if (header.dataset.card && loggingActive()) toggleCard(header.dataset.card);
         else if (header.dataset.href) window.location.href = header.dataset.href;
     });
 
@@ -107,8 +117,71 @@ document.addEventListener('DOMContentLoaded', function () {
         const header = e.target.closest('.exercise-card-header');
         if (!header) return;
         e.preventDefault();
-        if (header.dataset.card) toggleCard(header.dataset.card);
+        if (header.dataset.card && loggingActive()) toggleCard(header.dataset.card);
         else if (header.dataset.href) window.location.href = header.dataset.href;
+    });
+
+    // ── Offline start/end of a workout ──────────────────────────────
+    // "Start Workout" is a plain GET that can't reach the server offline;
+    // intercept it and open a device-local workout instead. Ending while
+    // offline marks the local workout done (it finishes syncing later).
+    document.addEventListener('click', function (e) {
+        const link = e.target.closest('a[href*="start_workout"], a[href*="end_workout"]');
+        if (!link || navigator.onLine || !window.NoFluffOffline) return;
+        e.preventDefault();
+        if (link.href.indexOf('start_workout') !== -1) {
+            const match = link.href.match(/routine_type=([^&]+)/);
+            const routine = match
+                ? decodeURIComponent(match[1])
+                : (currentRoutineKey() || 'gym');
+            window.NoFluffOffline.startOfflineWorkout(routine);
+            const launcher = document.querySelector('.workout-launcher');
+            if (launcher) launcher.hidden = true;
+        } else if (window.NoFluffOffline.getOfflineWorkout()) {
+            window.NoFluffOffline.endOfflineWorkout();
+        } else {
+            alert("You're offline — the workout stays active until you're back online. Logged sets are saved.");
+        }
+    });
+
+    function currentRoutineKey() {
+        const active = document.querySelector('.routine-tab.active');
+        if (!active) return null;
+        const match = (active.getAttribute('href') || '').match(/routine=([^&]+)/);
+        return match ? decodeURIComponent(match[1]) : null;
+    }
+
+    // ── Logout hygiene: cached pages and the outbox are personal ────
+    document.addEventListener('click', function (e) {
+        const link = e.target.closest('a[href$="/logout"]');
+        if (!link) return;
+        e.preventDefault();
+        const go = function () { window.location.href = link.href; };
+        const cleanup = function () {
+            const clearCaches = caches
+                .keys()
+                .then(function (keys) {
+                    return Promise.all(
+                        keys.filter(function (k) { return k.indexOf('runtime') !== -1; })
+                            .map(function (k) { return caches.delete(k); })
+                    );
+                })
+                .catch(function () {});
+            const clearOutbox = window.NoFluffOffline
+                ? window.NoFluffOffline.clearAll().catch(function () {})
+                : Promise.resolve();
+            Promise.all([clearCaches, clearOutbox]).then(go, go);
+        };
+        if (window.NoFluffOffline) {
+            window.NoFluffOffline.pendingCount().then(function (n) {
+                if (n > 0 && !confirm(n + ' logged set' + (n === 1 ? '' : 's') + " haven't synced yet and will be lost. Log out anyway?")) {
+                    return;
+                }
+                cleanup();
+            }, cleanup);
+        } else {
+            cleanup();
+        }
     });
 
     function toggleCard(cardId) {
@@ -234,6 +307,33 @@ document.addEventListener('DOMContentLoaded', function () {
             if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
         }
 
+        // Sets logged with no reachable server go to the offline outbox: either
+        // there's no server workout at all (offline-started), or the POST just
+        // failed on a dead connection mid-workout.
+        function queueOffline() {
+            if (!window.NoFluffOffline) return false;
+            window.NoFluffOffline.queueLog(form).then(function (item) {
+                restoreBtn();
+                if (!item) {
+                    if (errDiv) errDiv.textContent = 'Please fill in at least one set.';
+                    return;
+                }
+                clearDraft(form);
+                markCardDone(form.dataset.cardId, item.reps.length, true);
+                collapseCard(form.dataset.cardId);
+                startTimer(60, item.exercise_name);
+            });
+            return true;
+        }
+
+        const serverEl = document.querySelector('[data-active-workout]');
+        const serverActive = !!(serverEl && serverEl.dataset.activeWorkout);
+        const offlineWorkout = window.NoFluffOffline && window.NoFluffOffline.getOfflineWorkout();
+        if (!serverActive && offlineWorkout && !offlineWorkout.ended) {
+            queueOffline();
+            return;
+        }
+
         fetch(form.action, {
             method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -252,15 +352,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (errDiv) errDiv.textContent = data.message || 'Error logging exercise.';
                 }
             })
-            .catch(function () { restoreBtn(); form.submit(); });
+            .catch(function () {
+                if (!queueOffline()) { restoreBtn(); form.submit(); }
+            });
     });
 
-    function markCardDone(cardId, n) {
+    function markCardDone(cardId, n, offline) {
         const h = document.querySelector('.exercise-card-header[data-card="' + cardId + '"]');
         if (!h) return;
         let badge = h.querySelector('.logged-badge');
         if (!badge) { badge = mkEl('span', 'logged-badge'); h.appendChild(badge); }
-        badge.textContent = '✓ ' + n + (n === 1 ? ' set' : ' sets');
+        badge.textContent = '✓ ' + n + (n === 1 ? ' set' : ' sets') + (offline ? ' · offline' : '');
+        badge.classList.toggle('offline', !!offline);
     }
 
     function showAdvancementBanner(name) {

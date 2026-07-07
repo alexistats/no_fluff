@@ -3,6 +3,7 @@ import json
 import re
 import secrets
 from datetime import UTC, date, datetime, timedelta
+from urllib.parse import urlsplit
 
 from flask import (
     Blueprint,
@@ -371,16 +372,19 @@ def logout():
 
 
 def _external_url_for(endpoint, **values):
-    """Absolute URL for use in emails.
+    """Absolute URL for use in emails and feeds.
 
     Prefers the configured APP_BASE_URL (trusted) over the request host, so a
     spoofed Host header can't steer emailed links; local dev falls back to the
-    request host.
+    request host. The base is normalized to scheme + host — the app is always
+    root-mounted, so a stray path in the env var (a pasted '/login', say) must
+    never leak into generated links.
     """
     path = url_for(endpoint, **values)
     base = current_app.config.get('APP_BASE_URL')
     if base:
-        return base.rstrip('/') + path
+        parts = urlsplit(base if '//' in base else f'https://{base}')
+        return f'{parts.scheme}://{parts.netloc}{path}'
     return request.url_root.rstrip('/') + path
 
 
@@ -947,6 +951,111 @@ def view_workout(workout_id):
         exercise_logs=exercise_logs,
         progression_names=progression_names,
     )
+
+
+# ── Offline sync ──────────────────────────────────────────────────────
+
+
+def _parse_client_datetime(value):
+    """ISO 8601 string → aware UTC datetime, or None if absent/garbled."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError:
+        return None
+    return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+@main.route('/sync/workout', methods=['POST'])
+@csrf.exempt
+def sync_workout():
+    """Replay a batch of offline-logged sets. Idempotent by client ids.
+
+    CSRF posture: exempt, but the required X-Requested-With header and JSON
+    content type both force a CORS preflight cross-origin, which is never
+    granted — same defense the AJAX log endpoint relies on.
+    """
+    if request.headers.get('X-Requested-With') != 'XMLHttpRequest':
+        abort(403)
+    if not current_user.is_authenticated:
+        return jsonify({'status': 'unauthenticated'}), 401
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        abort(400)
+
+    workout_id = data.get('workout_id')
+    client_uuid = str(data.get('client_uuid') or '')[:36]
+    if workout_id is not None:
+        # Sets logged against a workout that was started online.
+        workout = db.session.get(Workout, workout_id)
+        if workout is None or workout.user_id != current_user.id:
+            abort(404)
+    elif client_uuid:
+        # Fully offline workout: find-or-create by the client's uuid.
+        workout = Workout.query.filter_by(user_id=current_user.id, client_uuid=client_uuid).first()
+        if workout is None:
+            routine_type = data.get('routine_type')
+            if not _valid_routine_key(routine_type):
+                abort(400)
+            workout = Workout(
+                user_id=current_user.id,
+                routine_type=routine_type,
+                client_uuid=client_uuid,
+            )
+            started = _parse_client_datetime(data.get('started_at'))
+            if started:
+                workout.date = started
+            db.session.add(workout)
+            db.session.flush()
+    else:
+        abort(400)
+
+    logs = data.get('logs') if isinstance(data.get('logs'), list) else []
+    known = {log.client_log_id for log in workout.exercises if log.client_log_id}
+    accepted = []
+    for raw in logs[:100]:
+        if not isinstance(raw, dict):
+            continue
+        client_log_id = str(raw.get('client_log_id') or '')[:36]
+        if not client_log_id:
+            continue
+        if client_log_id in known:
+            accepted.append(client_log_id)  # already stored — acknowledge again
+            continue
+
+        name = str(raw.get('exercise_name') or '').strip()[:100]
+        reps = [str(r).strip()[:10] for r in raw.get('reps') or [] if str(r).strip()]
+        reps = reps[:MAX_GYM_SETS]
+        if not name or not reps:
+            continue
+        weights = [str(w).strip()[:10] or '0' for w in raw.get('weights') or []]
+        weights = (weights + ['0'] * len(reps))[: len(reps)]
+        has_weights = any(w not in ('', '0') for w in weights)
+        unit = raw.get('weight_unit')
+        unit = unit if unit in ('lbs', 'kg') else 'lbs'
+        level = raw.get('progression_level')
+
+        db.session.add(
+            ExerciseLog(
+                exercise_name=name,
+                sets_completed=len(reps),
+                reps_per_set=','.join(reps),
+                weight_per_set=','.join(weights) if has_weights else None,
+                weight_unit=unit if has_weights else None,
+                progression_level=level if isinstance(level, int) else None,
+                notes=str(raw.get('notes') or '').strip()[:500],
+                workout_id=workout.id,
+                client_log_id=client_log_id,
+            )
+        )
+        known.add(client_log_id)
+        accepted.append(client_log_id)
+        if workout.routine_type == 'bwf':
+            maybe_advance_progression(current_user, name, reps)
+
+    db.session.commit()
+    return jsonify({'status': 'ok', 'workout_id': workout.id, 'accepted': accepted})
 
 
 # ── Calendar feed & reminders ─────────────────────────────────────────

@@ -469,7 +469,7 @@ same PR as the phase itself.
 - [x] Phase 2 — De-emphasize BWF (routine visibility)
 - [x] Phase 3 — Email foundation + forgot password
 - [x] Phase 4 — Reminders: ICS feed + email
-- [ ] Phase 5 — Offline logging + sync
+- [x] Phase 5 — Offline logging + sync
 - [ ] Phase 6 — Shared-key access lock
 
 ## Kickoff prompt (reuse for every session)

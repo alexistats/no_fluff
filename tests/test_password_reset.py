@@ -134,6 +134,16 @@ def test_authenticated_users_are_redirected_away(logged_in_client):
     assert logged_in_client.get('/reset_password/whatever').status_code == 302
 
 
+def test_app_base_url_is_normalized_to_scheme_and_host(client, app, outbox):
+    # A pasted URL with a stray path (someone copies it from the login page)
+    # must not leak into emailed links.
+    app.config['APP_BASE_URL'] = 'https://example.com/login'
+    _register(client)
+    _request_reset(client)
+    url = re.search(r'https?://\S+', outbox[-1]['text']).group()
+    assert url.startswith('https://example.com/reset_password/')
+
+
 # ── Rate limiting (default TestConfig disables it) ─────────────────
 
 
